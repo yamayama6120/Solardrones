@@ -1,101 +1,105 @@
-// ========================
+// -----------------------------
 // Firebase 初期化
-// ========================
+// -----------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
-  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL: "https://dronesgps-f3616-default-rtdb.firebaseio.com",
   projectId: "dronesgps-f3616",
-  storageBucket: "dronesgps-f3616.firebasestorage.app",
+  storageBucket: "dronesgps-f3616.appspot.com",
   messagingSenderId: "1068524436957",
-  appId: "1:1068524436957:web:dbd9ec480ced3065314a34",
+  appId: "1:1068524436957:web:dbd9ec480ced3065314a34"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ========================
-// 地図の準備
-// ========================
-let map = L.map('map').setView([35, 135], 6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+// -----------------------------
+// Leaflet 地図初期化
+// -----------------------------
+const map = L.map('map').setView([35.0, 135.0], 5); // 初期位置適当に設定
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
 
 let marker = null;
-let path = [];
-let polyline = null;
+let polyline = L.polyline([], { color: 'blue' }).addTo(map);
 
-// ========================
-// グラフの準備
-// ========================
+// -----------------------------
+// Chart.js 初期化
+// -----------------------------
 const ctx = document.getElementById('chart').getContext('2d');
-let labels=[], panelData=[], liData=[], piData=[];
-
-let chart = new Chart(ctx, {
+const chart = new Chart(ctx, {
   type: 'line',
   data: {
-    labels: labels,
+    labels: [],
     datasets: [
-      { label:'Panel Power (W)', data: panelData, borderColor:'orange', fill:false },
-      { label:'Li-ion Power (W)', data: liData, borderColor:'green', fill:false },
-      { label:'Raspberry Pi Power (W)', data: piData, borderColor:'blue', fill:false }
+      { label: 'Panel Power', data: [], borderColor: 'red', fill: false },
+      { label: 'Li Power', data: [], borderColor: 'green', fill: false },
+      { label: 'Pi Power', data: [], borderColor: 'blue', fill: false }
     ]
   },
   options: {
     responsive: true,
-    plugins: { legend: { position: 'top' } },
-    scales: {
-      x: { title: { display:true, text:'Time' } },
-      y: { title: { display:true, text:'Power (W)' } }
-    }
+    plugins: { legend: { display: true } },
+    scales: { x: { display: true, title: { display: true, text: 'Time' } },
+              y: { display: true, title: { display: true, text: 'Power [W]' } } }
   }
 });
 
-// ========================
-// データ取得（過去軌跡 + グラフ）
-// ========================
-const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-db.ref(`sensors_log/${today}`).on("value", snapshot => {
-  const logs = snapshot.val();
-  if(!logs) return;
+// -----------------------------
+// データ取得・描画
+// -----------------------------
 
-  // 配列初期化
-  labels.length = panelData.length = liData.length = piData.length = 0;
-  path = [];
+// Raspberry Pi 側の送信先に合わせて書き換え
+// 今回は send_sensors_to_firebase.py で ref.set(data) している 'sensors'
+db.ref('sensors').on('value', snapshot => {
+  const data = snapshot.val();
+  if (!data) return;
 
-  Object.keys(logs).sort().forEach(ts => {
-    const entry = logs[ts];
-    const lat = entry.lat;
-    const lng = entry.lng;
+  const times = [];
+  const panelPower = [];
+  const liPower = [];
+  const piPower = [];
+  const latlngs = [];
 
-    // ---------------------
-    // マーカー軌跡
-    // ---------------------
-    path.push([lat,lng]);
-    if(marker===null){
-      marker = L.marker([lat,lng]).addTo(map);
-    } else {
-      marker.setLatLng([lat,lng]);
+  // timestampキーでソート
+  const keys = Object.keys(data).sort();
+
+  keys.forEach(ts => {
+    const item = data[ts];
+    const timeStr = new Date(Number(ts)*1000).toLocaleTimeString();
+    times.push(timeStr);
+
+    panelPower.push(item.INA219_Panel ? item.INA219_Panel.voltage * item.INA219_Panel.current : 0);
+    liPower.push(item.INA226_Li ? item.INA226_Li.voltage * item.INA226_Li.current : 0);
+    piPower.push(item.INA226_Load ? item.INA226_Load.voltage * item.INA226_Load.current : 0);
+
+    if (item.lat && item.lng) {
+      latlngs.push([item.lat, item.lng]);
     }
-
-    marker.bindPopup(`
-      <b>位置情報</b><br>
-      緯度: ${lat}<br>
-      経度: ${lng}<br>
-      🔆 パネル: ${entry.panel_power} W<br>
-      🔋 リチウム: ${entry.li_power} W<br>
-      💻 RPi: ${entry.pi_power} W
-    `);
-
-    if(polyline===null) polyline = L.polyline(path, {color:'red'}).addTo(map);
-    else polyline.setLatLngs(path);
-
-    // ---------------------
-    // グラフ用データ
-    // ---------------------
-    labels.push(new Date(ts*1000).toLocaleTimeString());
-    panelData.push(entry.panel_power);
-    liData.push(entry.li_power);
-    piData.push(entry.pi_power);
   });
 
+  // Chart 更新
+  chart.data.labels = times;
+  chart.data.datasets[0].data = panelPower;
+  chart.data.datasets[1].data = liPower;
+  chart.data.datasets[2].data = piPower;
   chart.update();
+
+  // 地図更新
+  if (latlngs.length > 0) {
+    if (!marker) {
+      marker = L.marker(latlngs[latlngs.length-1]).addTo(map)
+                .bindPopup(`Panel: ${panelPower[panelPower.length-1].toFixed(2)} W<br>
+                            Li: ${liPower[liPower.length-1].toFixed(2)} W<br>
+                            Pi: ${piPower[piPower.length-1].toFixed(2)} W`).openPopup();
+    } else {
+      marker.setLatLng(latlngs[latlngs.length-1])
+            .setPopupContent(`Panel: ${panelPower[panelPower.length-1].toFixed(2)} W<br>
+                              Li: ${liPower[liPower.length-1].toFixed(2)} W<br>
+                              Pi: ${piPower[piPower.length-1].toFixed(2)} W`);
+    }
+    polyline.setLatLngs(latlngs);
+    map.fitBounds(polyline.getBounds());
+  }
 });
