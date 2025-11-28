@@ -11,9 +11,16 @@ html, body {
 }
 
 #map {
-  flex: 1; /* 上半分に地図 */
+  flex: 1;
 }
 
 #chart {
-  height: 300px; /* 下半分にグラフ */
+  height: 300px;
+}
+
+#message {
+  text-align: center;
+  padding: 5px;
+  font-weight: bold;
+  color: red;
 }
