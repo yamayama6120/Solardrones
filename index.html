@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase GPS Viewer (Free)</title>
+
+  <!-- Leaflet（地図） -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Chart.js（電力グラフ） -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    #map { height: 400px; }
+    #chart { width: 100%; height: 250px; }
+  </style>
+</head>
+
+<body>
+  <h2>GPS マッピング（Firebase → 無料Web）</h2>
+  <div id="map"></div>
+  <canvas id="chart"></canvas>
+
+  <script>
+    const FIREBASE_URL =
+      "https://YOUR_PROJECT_ID.firebaseio.com/drone_data.json";
+
+    const map = L.map('map').setView([35.0, 135.0], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let marker = null;
+
+    const ctx = document.getElementById("chart").getContext("2d");
+    const powerChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [{
+          label: "Voltage (V)",
+          data: []
+        }]
+      }
+    });
+
+    async function fetchData() {
+      const res = await fetch(FIREBASE_URL);
+      const data = await res.json();
+      const latest = data[data.length - 1];
+
+      // 地図の更新
+      if (marker === null) {
+        marker = L.marker([latest.lat, latest.lng]).addTo(map);
+      } else {
+        marker.setLatLng([latest.lat, latest.lng]);
+      }
+
+      map.setView([latest.lat, latest.lng], 15);
+
+      // グラフ更新
+      powerChart.data.labels.push(new Date(latest.timestamp).toLocaleTimeString());
+      powerChart.data.datasets[0].data.push(latest.voltage);
+      powerChart.update();
+    }
+
+    setInterval(fetchData, 4000); // 4秒ごとに更新
+  </script>
+</body>
+</html>
