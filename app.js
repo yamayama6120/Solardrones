@@ -16,12 +16,15 @@ const db = firebase.database();
 // -----------------------------
 // Leaflet 地図初期化
 // -----------------------------
-const map = L.map('map').setView([35.0, 135.0], 5); // 初期位置適当に設定
+const initialLatLng = [35.0, 135.0]; // 初期位置
+const map = L.map('map').setView(initialLatLng, 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
-let marker = null;
+let marker = L.marker(initialLatLng).addTo(map)
+               .bindPopup("Raspberry Pi がまだデータを送信していません")
+               .openPopup();
 let polyline = L.polyline([], { color: 'blue' }).addTo(map);
 
 // -----------------------------
@@ -41,20 +44,29 @@ const chart = new Chart(ctx, {
   options: {
     responsive: true,
     plugins: { legend: { display: true } },
-    scales: { x: { display: true, title: { display: true, text: 'Time' } },
-              y: { display: true, title: { display: true, text: 'Power [W]' } } }
+    scales: {
+      x: { display: true, title: { display: true, text: 'Time' } },
+      y: { display: true, title: { display: true, text: 'Power [W]' } }
+    }
   }
 });
 
 // -----------------------------
 // データ取得・描画
 // -----------------------------
-
-// Raspberry Pi 側の送信先に合わせて書き換え
-// 今回は send_sensors_to_firebase.py で ref.set(data) している 'sensors'
 db.ref('sensors').on('value', snapshot => {
   const data = snapshot.val();
-  if (!data) return;
+
+  const messageDiv = document.getElementById('message');
+
+  if (!data) {
+    // データなし
+    messageDiv.style.display = 'block';
+    messageDiv.innerText = 'データがまだありません';
+    return;
+  } else {
+    messageDiv.style.display = 'none';
+  }
 
   const times = [];
   const panelPower = [];
@@ -62,7 +74,6 @@ db.ref('sensors').on('value', snapshot => {
   const piPower = [];
   const latlngs = [];
 
-  // timestampキーでソート
   const keys = Object.keys(data).sort();
 
   keys.forEach(ts => {
@@ -88,17 +99,11 @@ db.ref('sensors').on('value', snapshot => {
 
   // 地図更新
   if (latlngs.length > 0) {
-    if (!marker) {
-      marker = L.marker(latlngs[latlngs.length-1]).addTo(map)
-                .bindPopup(`Panel: ${panelPower[panelPower.length-1].toFixed(2)} W<br>
+    const lastLatLng = latlngs[latlngs.length-1];
+    marker.setLatLng(lastLatLng)
+          .setPopupContent(`Panel: ${panelPower[panelPower.length-1].toFixed(2)} W<br>
                             Li: ${liPower[liPower.length-1].toFixed(2)} W<br>
-                            Pi: ${piPower[piPower.length-1].toFixed(2)} W`).openPopup();
-    } else {
-      marker.setLatLng(latlngs[latlngs.length-1])
-            .setPopupContent(`Panel: ${panelPower[panelPower.length-1].toFixed(2)} W<br>
-                              Li: ${liPower[liPower.length-1].toFixed(2)} W<br>
-                              Pi: ${piPower[piPower.length-1].toFixed(2)} W`);
-    }
+                            Pi: ${piPower[piPower.length-1].toFixed(2)} W`);
     polyline.setLatLngs(latlngs);
     map.fitBounds(polyline.getBounds());
   }
