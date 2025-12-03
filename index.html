@@ -1,28 +1,36 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>Drone Power & GPS Dashboard</title>
-  <link rel="stylesheet" href="style.css">
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solar Drone Monitor</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="container">
-    <div id="map"></div>
-    <canvas id="chart"></canvas>
-  </div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<h2>Real-time Solar Drone Monitoring</h2>
+
+<div id="message" class="message">Raspberry Pi がまだデータを送信していません</div>
+
+<div id="map"></div>
+<canvas id="chart"></canvas>
+
+<!-- ----------- Firebase v8 ONLY ----------- -->
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<!-- ----------- Leaflet ----------- -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- ----------- Chart.js ----------- -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- ----------- Your JS ----------- -->
 <script src="app.js"></script>
+
 </body>
 </html>
