@@ -4,19 +4,57 @@
   <meta charset="UTF-8">
   <title>Drone Live Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    #map { height: 500px; margin-top: 10px; }
-    body { font-family: Arial, sans-serif; padding: 10px; }
-    .panel { margin-bottom: 5px; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 10px; background: #f4f6f8; }
+    h2 { text-align: center; }
+    #container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 15px;
+      width: 250px;
+    }
+    .card h3 { margin-top: 0; margin-bottom: 10px; font-size: 18px; }
+    .value { font-weight: bold; }
+    #map { height: 400px; width: 100%; margin-top: 20px; border-radius: 12px; }
+    canvas { background: white; border-radius: 12px; padding: 10px; }
   </style>
 </head>
 <body>
   <h2>Drone Live Data</h2>
 
-  <div class="panel">Timestamp: <span id="ts">--</span></div>
-  <div class="panel">Panel: V=<span id="panel-v">--</span>, I=<span id="panel-i">--</span>, P=<span id="panel-p">--</span></div>
-  <div class="panel">Battery: V=<span id="batt-v">--</span>, I=<span id="batt-i">--</span>, P=<span id="batt-p">--</span></div>
-  <div class="panel">Load: V=<span id="load-v">--</span>, I=<span id="load-i">--</span>, P=<span id="load-p">--</span></div>
+  <div id="container">
+    <div class="card">
+      <h3>Timestamp</h3>
+      <div id="ts" class="value">--</div>
+    </div>
+
+    <div class="card">
+      <h3>Panel</h3>
+      <div>V: <span id="panel-v">--</span></div>
+      <div>I: <span id="panel-i">--</span></div>
+      <div>P: <span id="panel-p">--</span></div>
+      <canvas id="chart-panel" width="200" height="150"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Battery</h3>
+      <div>V: <span id="batt-v">--</span></div>
+      <div>I: <span id="batt-i">--</span></div>
+      <div>P: <span id="batt-p">--</span></div>
+      <canvas id="chart-batt" width="200" height="150"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Load</h3>
+      <div>V: <span id="load-v">--</span></div>
+      <div>I: <span id="load-i">--</span></div>
+      <div>P: <span id="load-p">--</span></div>
+      <canvas id="chart-load" width="200" height="150"></canvas>
+    </div>
+  </div>
 
   <div id="map"></div>
 
@@ -39,58 +77,88 @@
       };
       const app = initializeApp(firebaseConfig);
       const db = getDatabase(app);
-      console.log("Firebase initialized");
 
-      // Leaflet マップ初期化
+      // DOM要素取得
+      const ts = document.getElementById("ts");
+      const pv = document.getElementById("panel-v"), pi = document.getElementById("panel-i"), pp = document.getElementById("panel-p");
+      const bv = document.getElementById("batt-v"), bi = document.getElementById("batt-i"), bp = document.getElementById("batt-p");
+      const lv = document.getElementById("load-v"), li = document.getElementById("load-i"), lp = document.getElementById("load-p");
+
+      // マップ初期化
       const map = L.map("map").setView([35.0, 135.0], 13);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors"
-      }).addTo(map);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
       let marker = null;
 
-      // Realtime Database リスナー（最新データ）
-      const dataRef = ref(db, "latest");  // ← latest パスに変更
-      onValue(dataRef, (snapshot) => {
+      // Chart.js 用データ
+      const MAX_POINTS = 50;
+      const panelData = { labels: [], voltage: [], current: [], power: [] };
+      const battData = { labels: [], voltage: [], current: [], power: [] };
+      const loadData = { labels: [], voltage: [], current: [], power: [] };
+
+      function createChart(ctx, dataObj, label) {
+        return new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: dataObj.labels,
+            datasets: [
+              { label: 'V', data: dataObj.voltage, borderColor: 'red', fill: false },
+              { label: 'I', data: dataObj.current, borderColor: 'blue', fill: false },
+              { label: 'P', data: dataObj.power, borderColor: 'green', fill: false }
+            ]
+          },
+          options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } }, scales: { x: { display: false } } }
+        });
+      }
+
+      const chartPanel = createChart(document.getElementById('chart-panel'), panelData, 'Panel');
+      const chartBatt = createChart(document.getElementById('chart-batt'), battData, 'Battery');
+      const chartLoad = createChart(document.getElementById('chart-load'), loadData, 'Load');
+
+      // Realtime Database リスナー
+      const dataRef = ref(db, "latest");
+      onValue(dataRef, snapshot => {
         const v = snapshot.val();
-        console.log("Received:", v);
+        if (!v) return;
 
-        if (!v) {
-          console.warn("No data found at 'latest'");
-          return;
-        }
-
-        // DOM 要素更新
-        const ts = document.getElementById("ts");
-        const pv = document.getElementById("panel-v");
-        const pi = document.getElementById("panel-i");
-        const pp = document.getElementById("panel-p");
-        const bv = document.getElementById("batt-v");
-        const bi = document.getElementById("batt-i");
-        const bp = document.getElementById("batt-p");
-        const lv = document.getElementById("load-v");
-        const li = document.getElementById("load-i");
-        const lp = document.getElementById("load-p");
-
+        // 値を 0 や負でも表示
         ts.textContent = v.timestamp ?? "--";
-        pv.textContent = v.panel?.voltage ?? "--";
-        pi.textContent = v.panel?.current ?? "--";
-        pp.textContent = v.panel?.power ?? "--";
-        bv.textContent = v.battery?.voltage ?? "--";
-        bi.textContent = v.battery?.current ?? "--";
-        bp.textContent = v.battery?.power ?? "--";
-        lv.textContent = v.load?.voltage ?? "--";
-        li.textContent = v.load?.current ?? "--";
-        lp.textContent = v.load?.power ?? "--";
+        pv.textContent = (v.panel?.voltage !== undefined) ? v.panel.voltage : "--";
+        pi.textContent = (v.panel?.current !== undefined) ? v.panel.current : "--";
+        pp.textContent = (v.panel?.power !== undefined) ? v.panel.power : "--";
 
-        // GPS マーカー更新
+        bv.textContent = (v.battery?.voltage !== undefined) ? v.battery.voltage : "--";
+        bi.textContent = (v.battery?.current !== undefined) ? v.battery.current : "--";
+        bp.textContent = (v.battery?.power !== undefined) ? v.battery.power : "--";
+
+        lv.textContent = (v.load?.voltage !== undefined) ? v.load.voltage : "--";
+        li.textContent = (v.load?.current !== undefined) ? v.load.current : "--";
+        lp.textContent = (v.load?.power !== undefined) ? v.load.power : "--";
+
+        // マップ更新
         if (v.GPS?.lat && v.GPS?.lng) {
           if (!marker) {
             marker = L.marker([v.GPS.lat, v.GPS.lng]).addTo(map);
+            marker.bindPopup(`Panel P: ${v.panel?.power ?? 0} W`);
           } else {
             marker.setLatLng([v.GPS.lat, v.GPS.lng]);
+            marker.setPopupContent(`Panel P: ${v.panel?.power ?? 0} W`);
           }
           map.setView([v.GPS.lat, v.GPS.lng], 15);
         }
+
+        // データ配列に追加
+        const now = new Date().toLocaleTimeString();
+        function pushData(arr, label, voltage, current, power){
+          arr.labels.push(label); arr.voltage.push(voltage); arr.current.push(current); arr.power.push(power);
+          if(arr.labels.length > MAX_POINTS){
+            arr.labels.shift(); arr.voltage.shift(); arr.current.shift(); arr.power.shift();
+          }
+        }
+        pushData(panelData, now, v.panel?.voltage ?? 0, v.panel?.current ?? 0, v.panel?.power ?? 0);
+        pushData(battData, now, v.battery?.voltage ?? 0, v.battery?.current ?? 0, v.battery?.power ?? 0);
+        pushData(loadData, now, v.load?.voltage ?? 0, v.load?.current ?? 0, v.load?.power ?? 0);
+
+        chartPanel.update(); chartBatt.update(); chartLoad.update();
       });
     });
   </script>
