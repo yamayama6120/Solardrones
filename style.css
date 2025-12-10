@@ -1,27 +1,22 @@
-html, body {
-  height: 100%;
-  margin: 0;
-  font-family: Arial, sans-serif;
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
 }
 
-#container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+h1 {
+    text-align: center;
 }
 
-#map {
-  flex: 1;
-  min-height: 400px;
+#latest, #map, #history {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    background: #f8f8f8;
 }
 
-#chart {
-  height: 300px;
-}
-
-#message {
-  text-align: center;
-  padding: 5px;
-  font-weight: bold;
-  color: red;
+pre {
+    background: #fff;
+    padding: 10px;
+    border: 1px solid #ddd;
+    overflow-x: auto;
 }
