@@ -1,38 +1,41 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>Drone Realtime Monitor</title>
+  <meta charset="utf-8" />
+  <title>Drone Live Tracker</title>
+  <link rel="stylesheet" href="style.css">
 
-<!-- Leaflet -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-<link rel="stylesheet" href="style.css">
-
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
+  <h1>Drone Realtime Tracker</h1>
+  <div id="container">
+    <div id="map"></div>
+    <div id="side">
+      <div id="live-info">
+        <h2>Current</h2>
+        <p id="ts">--</p>
+        <p><b>Panel</b> V: <span id="panel-v">--</span> V, I: <span id="panel-i">--</span> mA, P: <span id="panel-p">--</span> W</p>
+        <p><b>Battery</b> V: <span id="batt-v">--</span> V, I: <span id="batt-i">--</span> mA, P: <span id="batt-p">--</span> W</p>
+        <p><b>Load</b> V: <span id="load-v">--</span> V, I: <span id="load-i">--</span> mA, P: <span id="load-p">--</span> W</p>
+      </div>
 
-<h2>Solar Drone Live Telemetry</h2>
+      <div id="chart-wrap">
+        <h2>Power (W) — last 100</h2>
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+  </div>
 
-<div id="map"></div>
-<div id="panel">
-    <h3>Live Power</h3>
-    <div id="liveData"></div>
-
-    <h3>Power Chart</h3>
-    <canvas id="chart"></canvas>
-</div>
-
-<div id="message"></div>
-
-<script src="script.js"></script>
-
+  <script src="script.js"></script>
 </body>
 </html>
