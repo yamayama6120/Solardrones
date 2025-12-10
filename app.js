@@ -1,12 +1,13 @@
 /* Firebase Init */
-var firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
-  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL: "https://dronesgps-f3616-default-rtdb.firebaseio.com/",
   projectId: "dronesgps-f3616",
-  storageBucket: "dronesgps-f3616.appspot.com",
+  storageBucket: "dronesgps-f3616.firebasestorage.app",
   messagingSenderId: "1068524436957",
-  appId: "1:1068524436957:web:dbd9ec480ced3065314a34"
+  appId: "1:1068524436957:web:dbd9ec480ced3065314a34",
+  measurementId: "G-STNDL06MJT"
 };
 
 firebase.initializeApp(firebaseConfig);
