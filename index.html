@@ -1,24 +1,9 @@
-// ==============================
-// DOM が完全に読み込まれてから実行
-// ==============================
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
 window.addEventListener("DOMContentLoaded", () => {
-
-  // ==============================
-  // Firebase v9 Modular
-  // ==============================
-  import {
-    initializeApp
-  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-
-  import {
-    getDatabase,
-    ref,
-    onValue
-  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-
-  // ==============================
   // Firebase Config
-  // ==============================
   const firebaseConfig = {
     apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
     authDomain: "dronesgps-f3616.firebaseapp.com",
@@ -32,42 +17,29 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-
   console.log("Firebase initialized");
 
-
-  // ==============================
   // Leaflet Map
-  // ==============================
   const map = L.map("map").setView([35.0, 135.0], 13);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
-
   let marker = null;
 
-
-  // ==============================
   // Realtime DB Listener
-  // ==============================
   const dataRef = ref(db, "drone/data");
-
   onValue(dataRef, (snapshot) => {
     const v = snapshot.val();
     console.log("Received:", v);
-
     if (!v) return;
 
-    // ---- DOM 要素を安全に取得 ----
     const ts = document.getElementById("ts");
     const pv = document.getElementById("panel-v");
     const pi = document.getElementById("panel-i");
     const pp = document.getElementById("panel-p");
-
     const bv = document.getElementById("batt-v");
     const bi = document.getElementById("batt-i");
     const bp = document.getElementById("batt-p");
-
     const lv = document.getElementById("load-v");
     const li = document.getElementById("load-i");
     const lp = document.getElementById("load-p");
@@ -77,22 +49,18 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // ---- Live Info 更新 ----
     ts.textContent = v.timestamp || "--";
-
     pv.textContent = v.panel?.voltage ?? "--";
     pi.textContent = v.panel?.current ?? "--";
     pp.textContent = v.panel?.power ?? "--";
-
     bv.textContent = v.battery?.voltage ?? "--";
     bi.textContent = v.battery?.current ?? "--";
     bp.textContent = v.battery?.power ?? "--";
-
     lv.textContent = v.load?.voltage ?? "--";
     li.textContent = v.load?.current ?? "--";
     lp.textContent = v.load?.power ?? "--";
 
-    // ---- GPS Marker ----
+    // GPS Marker
     if (v.gps && v.gps.lat && v.gps.lng) {
       if (!marker) {
         marker = L.marker([v.gps.lat, v.gps.lng]).addTo(map);
@@ -102,5 +70,5 @@ window.addEventListener("DOMContentLoaded", () => {
       map.setView([v.gps.lat, v.gps.lng], 15);
     }
   });
-
 });
+</script>
