@@ -1,46 +1,38 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>Drone Monitor</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>Drone Realtime Monitor</title>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<link rel="stylesheet" href="style.css">
+
 </head>
-
 <body>
-    <div class="container">
-        <h1>Drone Monitoring Dashboard</h1>
 
-        <section>
-            <h2>GPS</h2>
-            <p>Lat: <span id="gps-lat">--</span></p>
-            <p>Lng: <span id="gps-lng">--</span></p>
-            <p>Timestamp: <span id="gps-time">--</span></p>
-        </section>
+<h2>Solar Drone Live Telemetry</h2>
 
-        <section>
-            <h2>INA219</h2>
-            <p>Voltage: <span id="ina219-v">--</span> V</p>
-            <p>Current: <span id="ina219-i">--</span> mA</p>
-        </section>
+<div id="map"></div>
+<div id="panel">
+    <h3>Live Power</h3>
+    <div id="liveData"></div>
 
-        <section>
-            <h2>INA226 Load</h2>
-            <p>Voltage: <span id="ina226-load-v">--</span> V</p>
-            <p>Current: <span id="ina226-load-i">--</span> mA</p>
-        </section>
+    <h3>Power Chart</h3>
+    <canvas id="chart"></canvas>
+</div>
 
-        <section>
-            <h2>INA226 Li</h2>
-            <p>Voltage: <span id="ina226-li-v">--</span> V</p>
-            <p>Current: <span id="ina226-li-i">--</span> mA</p>
-        </section>
-    </div>
+<div id="message"></div>
 
-    <script src="script.js"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
