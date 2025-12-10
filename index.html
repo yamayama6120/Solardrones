@@ -1,55 +1,53 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
   <meta charset="UTF-8">
-  <title>Drone Dashboard</title>
-
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      font-family: Arial, sans-serif;
-    }
-
-    #map {
-      height: 400px;
-      width: 100%;
-      margin-bottom: 10px;
-    }
-
-    #chart {
-      width: 100%;
-      height: 300px;
-    }
-
-    #message {
-      text-align: center;
-      padding: 5px;
-      font-weight: bold;
-      color: red;
-    }
-  </style>
-
-  <!-- Firebase v8 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Drone Telemetry Dashboard</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-  <h2>Firebase Drone Dashboard</h2>
-  <div id="message">読み込み中...</div>
-  <div id="map"></div>
-  <canvas id="chart"></canvas>
+<h2>Drone Telemetry Dashboard</h2>
 
-  <!-- 修正版 app.js -->
-  <script src="app.js"></script>
+<div id="loading">
+  <p>データ読み込み中...</p>
+</div>
+
+<div id="data-section" style="display:none;">
+  <h3>電力情報</h3>
+  <table>
+    <tr><th>項目</th><th>電圧 [V]</th><th>電流 [mA]</th></tr>
+    <tr><td>負荷</td><td id="load-voltage"></td><td id="load-current"></td></tr>
+    <tr><td>Liバッテリー</td><td id="li-voltage"></td><td id="li-current"></td></tr>
+    <tr><td>ソーラー</td><td id="panel-voltage"></td><td id="panel-current"></td></tr>
+  </table>
+
+  <h3>GPS</h3>
+  <p>緯度: <span id="gps-lat"></span></p>
+  <p>経度: <span id="gps-lng"></span></p>
+  <div id="map" style="width: 100%; height: 300px;"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<script src="app.js"></script>
+
+<script>
+let map, marker;
+
+function updateMap(lat, lng) {
+  if (!map) {
+    map = L.map('map').setView([lat, lng], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+    marker = L.marker([lat, lng]).addTo(map);
+  } else {
+    marker.setLatLng([lat, lng]);
+    map.setView([lat, lng]);
+  }
+}
+</script>
+
 </body>
 </html>
