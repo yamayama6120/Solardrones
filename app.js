@@ -1,58 +1,80 @@
-// Firebase 設定
+// -----------------------------
+// Firebase 初期化
+// -----------------------------
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
-  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "dronesgps-f3616",
   storageBucket: "dronesgps-f3616.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  messagingSenderId: "1068524436957",
+  appId: "1:1068524436957:web:dbd9ec480ced3065314a34"
 };
-
-// Firebase 初期化
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// HTML 要素
-const loadV = document.getElementById("load-voltage");
-const loadI = document.getElementById("load-current");
-const liV = document.getElementById("li-voltage");
-const liI = document.getElementById("li-current");
-const panelV = document.getElementById("panel-voltage");
-const panelI = document.getElementById("panel-current");
+// -----------------------------
+// Leaflet 地図初期化
+// -----------------------------
+const initialLatLng = [35.0, 135.0];
+const map = L.map('map').setView(initialLatLng, 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-const gpsLat = document.getElementById("gps-lat");
-const gpsLng = document.getElementById("gps-lng");
+let marker = L.marker(initialLatLng).addTo(map);
 
-const loading = document.getElementById("loading");
-const dataSection = document.getElementById("data-section");
+// -----------------------------
+// Chart.js 初期化
+// -----------------------------
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ['Panel', 'Li', 'Pi'],
+    datasets: [{
+      label: 'Power [W]',
+      data: [0, 0, 0],
+      backgroundColor: ['red', 'green', 'blue']
+    }]
+  },
+  options: {}
+});
 
-// Firebase リアルタイム更新
-db.ref("sensors").on("value", snapshot => {
-  const data = snapshot.val();
-
-  if (!data) {
+// -----------------------------
+// Realtime 最新データ取得
+// -----------------------------
+db.ref('sensors').on('value', snapshot => {
+  const sensors = snapshot.val();
+  if (!sensors) {
     console.log("データなし");
     return;
   }
 
-  // 読み込み中 → データ表示へ
-  loading.style.display = "none";
-  dataSection.style.display = "block";
+  // GPS
+  const gps = sensors.GPS;
+  if (gps && gps.lat && gps.lng) {
+    marker.setLatLng([gps.lat, gps.lng]);
+    map.setView([gps.lat, gps.lng], 16);
+  }
 
-  // 電圧・電流データ反映
-  loadV.textContent = data.INA226_Load.voltage.toFixed(3);
-  loadI.textContent = data.INA226_Load.current.toFixed(2);
+  // 電力計算
+  const panelPower = sensors.INA219
+    ? sensors.INA219.voltage * sensors.INA219.current
+    : 0;
 
-  liV.textContent = data.INA226_Li.voltage.toFixed(3);
-  liI.textContent = data.INA226_Li.current.toFixed(2);
+  const liPower = sensors.INA226_Li
+    ? sensors.INA226_Li.voltage * sensors.INA226_Li.current
+    : 0;
 
-  panelV.textContent = data.INA219.voltage.toFixed(3);
-  panelI.textContent = data.INA219.current.toFixed(2);
+  const piPower = sensors.INA226_Load
+    ? sensors.INA226_Load.voltage * sensors.INA226_Load.current
+    : 0;
 
-  gpsLat.textContent = data.GPS.lat.toFixed(6);
-  gpsLng.textContent = data.GPS.lng.toFixed(6);
+  // グラフ更新
+  chart.data.datasets[0].data = [
+    panelPower,
+    liPower,
+    piPower
+  ];
 
-  // 地図更新
-  updateMap(data.GPS.lat, data.GPS.lng);
+  chart.update();
 });
