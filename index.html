@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>Drone Live Tracker</title>
   <link rel="stylesheet" href="style.css">
 
@@ -12,43 +12,44 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Firebase v8 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
-
 <body>
-  <h1>Solar Drone Live Monitor</h1>
+  <h1>Drone Realtime Tracker</h1>
 
   <div id="container">
+    
     <div id="map"></div>
 
     <div id="side">
       <div id="live-info">
-        <h2>Latest Data</h2>
+        <h2>Current</h2>
         <p id="ts">--</p>
 
-        <h3>Panel</h3>
-        <p>V: <span id="panel-v">--</span> V  
-           I: <span id="panel-i">--</span> mA  
-           P: <span id="panel-p">--</span> W</p>
+        <p><b>Panel</b>  
+          V: <span id="panel-v">--</span> V, 
+          I: <span id="panel-i">--</span> mA, 
+          P: <span id="panel-p">--</span> W
+        </p>
 
-        <h3>Battery</h3>
-        <p>V: <span id="batt-v">--</span> V  
-           I: <span id="batt-i">--</span> mA  
-           P: <span id="batt-p">--</span> W</p>
+        <p><b>Battery</b>  
+          V: <span id="batt-v">--</span> V, 
+          I: <span id="batt-i">--</span> mA, 
+          P: <span id="batt-p">--</span> W
+        </p>
 
-        <h3>Load</h3>
-        <p>V: <span id="load-v">--</span> V  
-           I: <span id="load-i">--</span> mA  
-           P: <span id="load-p">--</span> W</p>
+        <p><b>Load</b>  
+          V: <span id="load-v">--</span> V, 
+          I: <span id="load-i">--</span> mA, 
+          P: <span id="load-p">--</span> W
+        </p>
       </div>
 
       <div id="chart-wrap">
-        <h2>Power History (last 100 points)</h2>
+        <h2>Power (W) — last 100</h2>
         <canvas id="chart"></canvas>
       </div>
     </div>
+
   </div>
 
   <script type="module" src="app.js"></script>
