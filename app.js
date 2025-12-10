@@ -1,4 +1,6 @@
-/* Firebase Init */
+/////////////////////////////////////
+// Firebase 設定
+/////////////////////////////////////
 const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
@@ -11,96 +13,92 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-var db = firebase.database();
+const db = firebase.database();
 
-/* Leaflet Map */
-var map = L.map('map').setView([35.0, 135.0], 6);
+/////////////////////////////////////
+// Leaflet Map 初期化
+/////////////////////////////////////
+let map = L.map('map').setView([35.0, 135.0], 5);
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors'
+  attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 
-var marker = L.marker([35.0, 135.0]).addTo(map);
+let marker = null;
 
-/* Chart.js Setup */
-var ctx = document.getElementById('chart').getContext('2d');
-var chart = new Chart(ctx, {
+/////////////////////////////////////
+// Chart.js 初期化
+/////////////////////////////////////
+let ctx = document.getElementById('chart').getContext('2d');
+let powerData = [];
+
+let chart = new Chart(ctx, {
   type: 'line',
   data: {
     labels: [],
     datasets: [{
-      label: "Power (W)",
-      data: [],
-      borderWidth: 1
+      label: "Battery Power (W)",
+      data: powerData,
+      borderWidth: 2
     }]
   },
-  options: { responsive: true }
+  options: {
+    animation: false,
+    scales: { y: { beginAtZero: true } }
+  }
 });
 
-// -------- 最新 GPS --------
-db.ref("sensors/GPS").on("value", function(snap){
-  var gps = snap.val();
-  if (!gps || gps.lat === 0) return;
+/////////////////////////////////////
+// Firebase リアルタイム監視
+/////////////////////////////////////
+db.ref("sensors").on("value", (snapshot) => {
+  const data = snapshot.val();
+  if (!data) return;
 
-  marker.setLatLng([gps.lat, gps.lng]);
-  map.setView([gps.lat, gps.lng], 16);
+  const ts = data.GPS?.timestamp || "--";
+  const lat = data.GPS?.lat || 0;
+  const lng = data.GPS?.lng || 0;
 
-  document.getElementById("ts").innerText = Date().toString();
-});
+  document.getElementById("ts").textContent = ts;
 
-// -------- Battery (INA219) --------
-function updateBattery(){
-  Promise.all([
-    db.ref("sensors/INA219_V").once("value"),
-    db.ref("sensors/INA219_I").once("value")
-  ]).then(values => {
-    var V = values[0].val()?.value || 0;
-    var I = values[1].val()?.value || 0;
-    var P = V * I;
-
-    document.getElementById("batt-v").innerText = V.toFixed(2);
-    document.getElementById("batt-i").innerText = I.toFixed(3);
-    document.getElementById("batt-p").innerText = P.toFixed(2);
-
-    // グラフへ追加
-    chart.data.labels.push("");
-    chart.data.datasets[0].data.push(P);
-    if(chart.data.datasets[0].data.length > 100){
-      chart.data.labels.shift();
-      chart.data.datasets[0].data.shift();
+  // マップ更新
+  if (lat !== 0 && lng !== 0) {
+    if (!marker) {
+      marker = L.marker([lat, lng]).addTo(map);
+    } else {
+      marker.setLatLng([lat, lng]);
     }
-    chart.update();
-  });
-}
-setInterval(updateBattery, 1000);
+    map.setView([lat, lng], 17);
+  }
 
-// -------- Panel (Li Battery from INA226_Li) --------
-db.ref("sensors/INA226_Li_V").on("value", function(){
-  Promise.all([
-    db.ref("sensors/INA226_Li_V").once("value"),
-    db.ref("sensors/INA226_Li_I").once("value")
-  ]).then(values => {
-    var V = values[0].val()?.value || 0;
-    var I = values[1].val()?.value || 0;
-    var P = V * I;
+  // Panel
+  const pv = data.INA226_Panel_V?.value || 0;
+  const pi = data.INA226_Panel_I?.value || 0;
+  document.getElementById("panel-v").textContent = pv;
+  document.getElementById("panel-i").textContent = pi;
+  document.getElementById("panel-p").textContent = (pv * pi / 1000).toFixed(3);
 
-    document.getElementById("panel-v").innerText = V.toFixed(2);
-    document.getElementById("panel-i").innerText = (I*1000).toFixed(1);
-    document.getElementById("panel-p").innerText = P.toFixed(2);
-  });
-});
+  // Battery（INA219）
+  const bv = data.INA219_V?.value || 0;
+  const bi = data.INA219_I?.value || 0;
+  document.getElementById("batt-v").textContent = bv;
+  document.getElementById("batt-i").textContent = bi;
+  const bp = (bv * bi / 1000).toFixed(3);
+  document.getElementById("batt-p").textContent = bp;
 
-// -------- Load (INA226_Load) --------
-db.ref("sensors/INA226_Load_V").on("value", function(){
-  Promise.all([
-    db.ref("sensors/INA226_Load_V").once("value"),
-    db.ref("sensors/INA226_Load_I").once("value")
-  ]).then(values => {
-    var V = values[0].val()?.value || 0;
-    var I = values[1].val()?.value || 0;
-    var P = V * I;
+  // Load
+  const lv = data.INA226_Load_V?.value || 0;
+  const li = data.INA226_Load_I?.value || 0;
+  document.getElementById("load-v").textContent = lv;
+  document.getElementById("load-i").textContent = li;
+  document.getElementById("load-p").textContent = (lv * li / 1000).toFixed(3);
 
-    document.getElementById("load-v").innerText = V.toFixed(2);
-    document.getElementById("load-i").innerText = (I*1000).toFixed(1);
-    document.getElementById("load-p").innerText = P.toFixed(2);
-  });
+  // グラフ更新
+  powerData.push(bp);
+  if (powerData.length > 100) powerData.shift();
+
+  chart.data.labels.push("");
+  if (chart.data.labels.length > 100) chart.data.labels.shift();
+
+  chart.update();
 });
