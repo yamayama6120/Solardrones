@@ -1,74 +1,86 @@
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Drone Live Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    #map { height: 500px; } /* マップの高さ必須 */
+  </style>
+</head>
+<body>
+  <h2>Drone Live Data</h2>
+  <div>Timestamp: <span id="ts">--</span></div>
+  <div>Panel: V=<span id="panel-v">--</span>, I=<span id="panel-i">--</span>, P=<span id="panel-p">--</span></div>
+  <div>Battery: V=<span id="batt-v">--</span>, I=<span id="batt-i">--</span>, P=<span id="batt-p">--</span></div>
+  <div>Load: V=<span id="load-v">--</span>, I=<span id="load-i">--</span>, P=<span id="load-p">--</span></div>
 
-window.addEventListener("DOMContentLoaded", () => {
-  // Firebase Config
-  const firebaseConfig = {
-    apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
-    authDomain: "dronesgps-f3616.firebaseapp.com",
-    databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "dronesgps-f3616",
-    storageBucket: "dronesgps-f3616.firebasestorage.app",
-    messagingSenderId: "1068524436957",
-    appId: "1:1068524436957:web:dbd9ec480ced3065314a34",
-    measurementId: "G-STNDL06MJT"
-  };
+  <div id="map"></div>
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  console.log("Firebase initialized");
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-  // Leaflet Map
-  const map = L.map("map").setView([35.0, 135.0], 13);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(map);
-  let marker = null;
+    window.addEventListener("DOMContentLoaded", () => {
+      const firebaseConfig = {
+        apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
+        authDomain: "dronesgps-f3616.firebaseapp.com",
+        databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "dronesgps-f3616",
+        storageBucket: "dronesgps-f3616.firebasestorage.app",
+        messagingSenderId: "1068524436957",
+        appId: "1:1068524436957:web:dbd9ec480ced3065314a34",
+        measurementId: "G-STNDL06MJT"
+      };
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      console.log("Firebase initialized");
 
-  // Realtime DB Listener
-  const dataRef = ref(db, "drone/data");
-  onValue(dataRef, (snapshot) => {
-    const v = snapshot.val();
-    console.log("Received:", v);
-    if (!v) return;
+      const map = L.map("map").setView([35.0, 135.0], 13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+      let marker = null;
 
-    const ts = document.getElementById("ts");
-    const pv = document.getElementById("panel-v");
-    const pi = document.getElementById("panel-i");
-    const pp = document.getElementById("panel-p");
-    const bv = document.getElementById("batt-v");
-    const bi = document.getElementById("batt-i");
-    const bp = document.getElementById("batt-p");
-    const lv = document.getElementById("load-v");
-    const li = document.getElementById("load-i");
-    const lp = document.getElementById("load-p");
+      const dataRef = ref(db, "drone/data");
+      onValue(dataRef, (snapshot) => {
+        const v = snapshot.val();
+        console.log("Received:", v);
+        if (!v) return;
 
-    if (!ts || !pv) {
-      console.error("DOM elements not loaded yet.");
-      return;
-    }
+        const ts = document.getElementById("ts");
+        const pv = document.getElementById("panel-v");
+        const pi = document.getElementById("panel-i");
+        const pp = document.getElementById("panel-p");
+        const bv = document.getElementById("batt-v");
+        const bi = document.getElementById("batt-i");
+        const bp = document.getElementById("batt-p");
+        const lv = document.getElementById("load-v");
+        const li = document.getElementById("load-i");
+        const lp = document.getElementById("load-p");
 
-    ts.textContent = v.timestamp || "--";
-    pv.textContent = v.panel?.voltage ?? "--";
-    pi.textContent = v.panel?.current ?? "--";
-    pp.textContent = v.panel?.power ?? "--";
-    bv.textContent = v.battery?.voltage ?? "--";
-    bi.textContent = v.battery?.current ?? "--";
-    bp.textContent = v.battery?.power ?? "--";
-    lv.textContent = v.load?.voltage ?? "--";
-    li.textContent = v.load?.current ?? "--";
-    lp.textContent = v.load?.power ?? "--";
+        ts.textContent = v.timestamp || "--";
+        pv.textContent = v.panel?.voltage ?? "--";
+        pi.textContent = v.panel?.current ?? "--";
+        pp.textContent = v.panel?.power ?? "--";
+        bv.textContent = v.battery?.voltage ?? "--";
+        bi.textContent = v.battery?.current ?? "--";
+        bp.textContent = v.battery?.power ?? "--";
+        lv.textContent = v.load?.voltage ?? "--";
+        li.textContent = v.load?.current ?? "--";
+        lp.textContent = v.load?.power ?? "--";
 
-    // GPS Marker
-    if (v.gps && v.gps.lat && v.gps.lng) {
-      if (!marker) {
-        marker = L.marker([v.gps.lat, v.gps.lng]).addTo(map);
-      } else {
-        marker.setLatLng([v.gps.lat, v.gps.lng]);
-      }
-      map.setView([v.gps.lat, v.gps.lng], 15);
-    }
-  });
-});
-</script>
+        if (v.gps && v.gps.lat && v.gps.lng) {
+          if (!marker) {
+            marker = L.marker([v.gps.lat, v.gps.lng]).addTo(map);
+          } else {
+            marker.setLatLng([v.gps.lat, v.gps.lng]);
+          }
+          map.setView([v.gps.lat, v.gps.lng], 15);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
