@@ -4,7 +4,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
-  databaseURL: "https://dronesgps-f3616-default-rtdb.firebaseio.com",
+  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "dronesgps-f3616",
   storageBucket: "dronesgps-f3616.appspot.com",
   messagingSenderId: "1068524436957",
@@ -16,15 +16,15 @@ const db = firebase.database();
 // -----------------------------
 // Leaflet 地図初期化
 // -----------------------------
-const initialLatLng = [35.0, 135.0]; // 初期位置
+const initialLatLng = [35.0, 135.0]; // 初期表示位置
 const map = L.map('map').setView(initialLatLng, 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
-let marker = L.marker(initialLatLng).addTo(map)
-               .bindPopup("Raspberry Pi がまだデータを送信していません")
-               .openPopup();
+let marker = L.marker(initialLatLng)
+              .bindPopup("Raspberry Pi がまだデータを送信していません")
+              .addTo(map);
 let polyline = L.polyline([], { color: 'blue' }).addTo(map);
 
 // -----------------------------
@@ -38,7 +38,7 @@ const chart = new Chart(ctx, {
     datasets: [
       { label: 'Panel Power', data: [], borderColor: 'red', fill: false },
       { label: 'Li Power', data: [], borderColor: 'green', fill: false },
-      { label: 'Pi Power', data: [], borderColor: 'blue', fill: false }
+      { label: 'Load Power', data: [], borderColor: 'blue', fill: false }
     ]
   },
   options: {
@@ -52,15 +52,13 @@ const chart = new Chart(ctx, {
 });
 
 // -----------------------------
-// データ取得・描画
-// -----------------------------
+// データ取得・描画（最新値のみ）
+ // -----------------------------
 db.ref('sensors').on('value', snapshot => {
   const data = snapshot.val();
-
   const messageDiv = document.getElementById('message');
 
   if (!data) {
-    // データなし
     messageDiv.style.display = 'block';
     messageDiv.innerText = 'データがまだありません';
     return;
@@ -68,43 +66,38 @@ db.ref('sensors').on('value', snapshot => {
     messageDiv.style.display = 'none';
   }
 
-  const times = [];
-  const panelPower = [];
-  const liPower = [];
-  const piPower = [];
-  const latlngs = [];
+  // 電力計算
+  const panelPower = data.INA219 ? (data.INA219.voltage * data.INA219.current) : 0;
+  const liPower    = data.INA226_Li ? (data.INA226_Li.voltage * data.INA226_Li.current) : 0;
+  const loadPower  = data.INA226_Load ? (data.INA226_Load.voltage * data.INA226_Load.current) : 0;
 
-  const keys = Object.keys(data).sort();
-
-  keys.forEach(ts => {
-    const item = data[ts];
-    const timeStr = new Date(Number(ts)*1000).toLocaleTimeString();
-    times.push(timeStr);
-
-    panelPower.push(item.INA219_Panel ? item.INA219_Panel.voltage * item.INA219_Panel.current : 0);
-    liPower.push(item.INA226_Li ? item.INA226_Li.voltage * item.INA226_Li.current : 0);
-    piPower.push(item.INA226_Load ? item.INA226_Load.voltage * item.INA226_Load.current : 0);
-
-    if (item.lat && item.lng) {
-      latlngs.push([item.lat, item.lng]);
-    }
-  });
+  // 時刻
+  const timeStr = data.GPS && data.GPS.timestamp ? new Date(data.GPS.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
 
   // Chart 更新
-  chart.data.labels = times;
-  chart.data.datasets[0].data = panelPower;
-  chart.data.datasets[1].data = liPower;
-  chart.data.datasets[2].data = piPower;
+  chart.data.labels.push(timeStr);
+  chart.data.datasets[0].data.push(panelPower);
+  chart.data.datasets[1].data.push(liPower);
+  chart.data.datasets[2].data.push(loadPower);
+
+  // データ量制御（最新50件だけ表示）
+  if (chart.data.labels.length > 50) {
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(ds => ds.data.shift());
+  }
   chart.update();
 
-  // 地図更新
-  if (latlngs.length > 0) {
-    const lastLatLng = latlngs[latlngs.length-1];
-    marker.setLatLng(lastLatLng)
-          .setPopupContent(`Panel: ${panelPower[panelPower.length-1].toFixed(2)} W<br>
-                            Li: ${liPower[liPower.length-1].toFixed(2)} W<br>
-                            Pi: ${piPower[piPower.length-1].toFixed(2)} W`);
-    polyline.setLatLngs(latlngs);
+  // GPS 描画
+  const lat = data.GPS ? data.GPS.lat : null;
+  const lng = data.GPS ? data.GPS.lng : null;
+
+  if (lat !== null && lng !== null) {
+    const latlng = [lat, lng];
+    marker.setLatLng(latlng)
+          .setPopupContent(`Panel: ${panelPower.toFixed(2)} W<br>
+                            Li: ${liPower.toFixed(2)} W<br>
+                            Load: ${loadPower.toFixed(2)} W`);
+    polyline.addLatLng(latlng);
     map.fitBounds(polyline.getBounds());
   }
 });
