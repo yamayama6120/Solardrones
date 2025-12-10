@@ -13,68 +13,42 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// -----------------------------
-// Leaflet 地図初期化
-// -----------------------------
-const initialLatLng = [35.0, 135.0];
-const map = L.map('map').setView(initialLatLng, 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+// ==========================
+// 汎用：value + timestamp を読む関数
+// ==========================
+function listenValue(path, valueId) {
+    db.ref(path).on("value", (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+        if (data.value !== undefined) {
+            document.getElementById(valueId).textContent = data.value;
+        }
+    });
+}
 
-let marker = L.marker(initialLatLng).addTo(map);
 
-// -----------------------------
-// Chart.js 初期化
-// -----------------------------
-const ctx = document.getElementById('chart').getContext('2d');
-const chart = new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels: ['Panel', 'Li', 'Pi'],
-    datasets: [{
-      label: 'Power [W]',
-      data: [0, 0, 0],
-      backgroundColor: ['red', 'green', 'blue']
-    }]
-  },
-  options: {}
+// ==========================
+// 各センサー読み取り
+// ==========================
+
+// GPS
+db.ref("GPS").on("value", (snap) => {
+    const gps = snap.val();
+    if (!gps) return;
+
+    document.getElementById("gps-lat").textContent = gps.lat ?? "--";
+    document.getElementById("gps-lng").textContent = gps.lng ?? "--";
+    document.getElementById("gps-time").textContent = gps.timestamp ?? "--";
 });
 
-// -----------------------------
-// Realtime 最新データ取得
-// -----------------------------
-db.ref('sensors').on('value', snapshot => {
-  const sensors = snapshot.val();
-  if (!sensors) {
-    console.log("データなし");
-    return;
-  }
+// INA219
+listenValue("INA219_V", "ina219-v");
+listenValue("INA219_I", "ina219-i");
 
-  // GPS
-  const gps = sensors.GPS;
-  if (gps && gps.lat && gps.lng) {
-    marker.setLatLng([gps.lat, gps.lng]);
-    map.setView([gps.lat, gps.lng], 16);
-  }
+// INA226 Load
+listenValue("INA226_Load_V", "ina226-load-v");
+listenValue("INA226_Load_I", "ina226-load-i");
 
-  // 電力計算
-  const panelPower = sensors.INA219
-    ? sensors.INA219.voltage * sensors.INA219.current
-    : 0;
-
-  const liPower = sensors.INA226_Li
-    ? sensors.INA226_Li.voltage * sensors.INA226_Li.current
-    : 0;
-
-  const piPower = sensors.INA226_Load
-    ? sensors.INA226_Load.voltage * sensors.INA226_Load.current
-    : 0;
-
-  // グラフ更新
-  chart.data.datasets[0].data = [
-    panelPower,
-    liPower,
-    piPower
-  ];
-
-  chart.update();
-});
+// INA226 Li
+listenValue("INA226_Li_V", "ina226-li-v");
+listenValue("INA226_Li_I", "ina226-li-i");
