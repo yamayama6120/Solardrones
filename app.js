@@ -1,104 +1,58 @@
-// -----------------------------
-// Firebase 初期化
-// -----------------------------
+// Firebase 設定
 const firebaseConfig = {
-  apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
+  apiKey: "YOUR_API_KEY",
   authDomain: "dronesgps-f3616.firebaseapp.com",
   databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "dronesgps-f3616",
   storageBucket: "dronesgps-f3616.appspot.com",
-  messagingSenderId: "1068524436957",
-  appId: "1:1068524436957:web:dbd9ec480ced3065314a34"
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
+
+// Firebase 初期化
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// -----------------------------
-// Leaflet 地図初期化
-// -----------------------------
-const initialLatLng = [35.0, 135.0];
-const map = L.map('map').setView(initialLatLng, 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors'
-}).addTo(map);
+// HTML 要素
+const loadV = document.getElementById("load-voltage");
+const loadI = document.getElementById("load-current");
+const liV = document.getElementById("li-voltage");
+const liI = document.getElementById("li-current");
+const panelV = document.getElementById("panel-voltage");
+const panelI = document.getElementById("panel-current");
 
-let marker = L.marker(initialLatLng).addTo(map)
-               .bindPopup("Raspberry Pi がまだデータを送信していません")
-               .openPopup();
-let polyline = L.polyline([], { color: 'blue' }).addTo(map);
+const gpsLat = document.getElementById("gps-lat");
+const gpsLng = document.getElementById("gps-lng");
 
-// -----------------------------
-// Chart.js 初期化
-// -----------------------------
-const ctx = document.getElementById('chart').getContext('2d');
-const chart = new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label: 'Panel Power', data: [], borderColor: 'red', fill: false },
-      { label: 'Li Power', data: [], borderColor: 'green', fill: false },
-      { label: 'Load Power', data: [], borderColor: 'blue', fill: false }
-    ]
-  },
-  options: {
-    responsive: true,
-    plugins: { legend: { display: true } },
-    scales: {
-      x: { display: true, title: { display: true, text: 'Time' } },
-      y: { display: true, title: { display: true, text: 'Power [W]' } }
-    }
-  }
-});
+const loading = document.getElementById("loading");
+const dataSection = document.getElementById("data-section");
 
-// -----------------------------
-// データ取得・描画（Python JSON 構造対応）
-// -----------------------------
-db.ref('sensors').on('value', snapshot => {
+// Firebase リアルタイム更新
+db.ref("sensors").on("value", snapshot => {
   const data = snapshot.val();
-  const messageDiv = document.getElementById('message');
 
   if (!data) {
-    messageDiv.style.display = 'block';
-    messageDiv.innerText = 'データがまだありません';
+    console.log("データなし");
     return;
-  } else {
-    messageDiv.style.display = 'none';
   }
 
-  const times = [];
-  const panelPower = [];
-  const liPower = [];
-  const loadPower = [];
-  const latlngs = [];
+  // 読み込み中 → データ表示へ
+  loading.style.display = "none";
+  dataSection.style.display = "block";
 
-  // Python は単一 JSON なので配列ではなく1件だけ扱う
-  const timeStamp = data.GPS && data.GPS.timestamp ? data.GPS.timestamp : Date.now()/1000;
-  times.push(new Date(timeStamp*1000).toLocaleTimeString());
+  // 電圧・電流データ反映
+  loadV.textContent = data.INA226_Load.voltage.toFixed(3);
+  loadI.textContent = data.INA226_Load.current.toFixed(2);
 
-  panelPower.push(data.INA219 ? data.INA219.voltage * data.INA219.current : 0);
-  liPower.push(data.INA226_Li ? data.INA226_Li.voltage * data.INA226_Li.current : 0);
-  loadPower.push(data.INA226_Load ? data.INA226_Load.voltage * data.INA226_Load.current : 0);
+  liV.textContent = data.INA226_Li.voltage.toFixed(3);
+  liI.textContent = data.INA226_Li.current.toFixed(2);
 
-  if (data.GPS && data.GPS.fix && data.GPS.lat !== null && data.GPS.lng !== null) {
-    latlngs.push([data.GPS.lat, data.GPS.lng]);
-  }
+  panelV.textContent = data.INA219.voltage.toFixed(3);
+  panelI.textContent = data.INA219.current.toFixed(2);
 
-  // Chart 更新
-  chart.data.labels = times;
-  chart.data.datasets[0].data = panelPower;
-  chart.data.datasets[1].data = liPower;
-  chart.data.datasets[2].data = loadPower;
-  chart.update();
+  gpsLat.textContent = data.GPS.lat.toFixed(6);
+  gpsLng.textContent = data.GPS.lng.toFixed(6);
 
   // 地図更新
-  if (latlngs.length > 0) {
-    const lastLatLng = latlngs[latlngs.length-1];
-    marker.setLatLng(lastLatLng)
-          .setPopupContent(`Panel: ${panelPower[panelPower.length-1].toFixed(2)} W<br>
-                            Li: ${liPower[liPower.length-1].toFixed(2)} W<br>
-                            Load: ${loadPower[loadPower.length-1].toFixed(2)} W`);
-    polyline.setLatLngs(latlngs);
-    map.fitBounds(polyline.getBounds());
-  }
+  updateMap(data.GPS.lat, data.GPS.lng);
 });
