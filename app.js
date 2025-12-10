@@ -16,7 +16,7 @@ const db = firebase.database();
 // -----------------------------
 // Leaflet 地図初期化
 // -----------------------------
-const initialLatLng = [35.0, 135.0]; // 初期位置
+const initialLatLng = [35.0, 135.0];
 const map = L.map('map').setView(initialLatLng, 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors'
@@ -52,15 +52,15 @@ const chart = new Chart(ctx, {
 });
 
 // -----------------------------
-// データ取得・描画（Python JSON 構造に対応）
+// データ取得・描画（Python JSON 構造対応）
 // -----------------------------
-db.ref('sensors_history').orderByKey().limitToLast(50).on('value', snapshot => {
+db.ref('sensors').on('value', snapshot => {
   const data = snapshot.val();
   const messageDiv = document.getElementById('message');
 
   if (!data) {
     messageDiv.style.display = 'block';
-    messageDiv.innerText = '履歴データがまだありません';
+    messageDiv.innerText = 'データがまだありません';
     return;
   } else {
     messageDiv.style.display = 'none';
@@ -72,20 +72,17 @@ db.ref('sensors_history').orderByKey().limitToLast(50).on('value', snapshot => {
   const loadPower = [];
   const latlngs = [];
 
-  Object.keys(data).sort().forEach(ts => {
-    const item = data[ts];
-    const timeStr = new Date(Number(ts)*1000).toLocaleTimeString();
-    times.push(timeStr);
+  // Python は単一 JSON なので配列ではなく1件だけ扱う
+  const timeStamp = data.GPS && data.GPS.timestamp ? data.GPS.timestamp : Date.now()/1000;
+  times.push(new Date(timeStamp*1000).toLocaleTimeString());
 
-    // Python 側のキー構造に合わせる
-    panelPower.push(item.INA219 ? item.INA219.voltage * item.INA219.current : 0);
-    liPower.push(item.INA226_Li ? item.INA226_Li.voltage * item.INA226_Li.current : 0);
-    loadPower.push(item.INA226_Load ? item.INA226_Load.voltage * item.INA226_Load.current : 0);
+  panelPower.push(data.INA219 ? data.INA219.voltage * data.INA219.current : 0);
+  liPower.push(data.INA226_Li ? data.INA226_Li.voltage * data.INA226_Li.current : 0);
+  loadPower.push(data.INA226_Load ? data.INA226_Load.voltage * data.INA226_Load.current : 0);
 
-    if (item.GPS && item.GPS.fix && item.GPS.lat !== null && item.GPS.lng !== null) {
-      latlngs.push([item.GPS.lat, item.GPS.lng]);
-    }
-  });
+  if (data.GPS && data.GPS.fix && data.GPS.lat !== null && data.GPS.lng !== null) {
+    latlngs.push([data.GPS.lat, data.GPS.lng]);
+  }
 
   // Chart 更新
   chart.data.labels = times;
