@@ -1,52 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>Drone Telemetry Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <title>Drone Telemetry Dashboard</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h2>Drone Telemetry Dashboard</h2>
+<h1>ドローン トラッキングシステム</h1>
 
-<div id="loading">
-  <p>データ読み込み中...</p>
+<div id="latest">
+    <h2>最新データ</h2>
+    <pre id="latestData">読み込み中...</pre>
 </div>
 
-<div id="data-section" style="display:none;">
-  <h3>電力情報</h3>
-  <table>
-    <tr><th>項目</th><th>電圧 [V]</th><th>電流 [mA]</th></tr>
-    <tr><td>負荷</td><td id="load-voltage"></td><td id="load-current"></td></tr>
-    <tr><td>Liバッテリー</td><td id="li-voltage"></td><td id="li-current"></td></tr>
-    <tr><td>ソーラー</td><td id="panel-voltage"></td><td id="panel-current"></td></tr>
-  </table>
-
-  <h3>GPS</h3>
-  <p>緯度: <span id="gps-lat"></span></p>
-  <p>経度: <span id="gps-lng"></span></p>
-  <div id="map" style="width: 100%; height: 300px;"></div>
+<div id="map">
+    <h2>GPS 位置</h2>
+    <iframe
+        id="gmap"
+        width="100%"
+        height="400"
+        frameborder="0"
+        style="border:0"
+        allowfullscreen
+        loading="lazy">
+    </iframe>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-<script src="app.js"></script>
+<div id="history">
+    <h2>履歴（最新 20 件）</h2>
+    <pre id="historyData">読み込み中...</pre>
+</div>
 
 <script>
-let map, marker;
+const baseURL = "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-function updateMap(lat, lng) {
-  if (!map) {
-    map = L.map('map').setView([lat, lng], 15);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+// 最新データ取得
+async function loadLatest() {
+    const res = await fetch(`${baseURL}/realtime/latest.json`);
+    const data = await res.json();
+    document.getElementById("latestData").textContent = JSON.stringify(data, null, 2);
 
-    marker = L.marker([lat, lng]).addTo(map);
-  } else {
-    marker.setLatLng([lat, lng]);
-    map.setView([lat, lng]);
-  }
+    if (data && data.GPS) {
+        updateMap(data.GPS.lat, data.GPS.lng);
+    }
 }
+
+// Google Map 更新
+function updateMap(lat, lng) {
+    if (lat === 0 && lng === 0) return;
+
+    const url =
+        `https://maps.google.com/maps?q=${lat},${lng}&z=16&output=embed`;
+
+    document.getElementById("gmap").src = url;
+}
+
+// 履歴取得（最新20件）
+async function loadHistory() {
+    const res = await fetch(`${baseURL}/realtime/history.json`);
+    const data = await res.json();
+
+    if (!data) {
+        document.getElementById("historyData").textContent = "履歴なし";
+        return;
+    }
+
+    const entries = Object.entries(data)
+        .sort((a, b) => Number(b[0]) - Number(a[0]))
+        .slice(0, 20);
+
+    document.getElementById("historyData").textContent =
+        JSON.stringify(Object.fromEntries(entries), null, 2);
+}
+
+// 1秒ごとに更新
+setInterval(() => {
+    loadLatest();
+    loadHistory();
+}, 1000);
+
+loadLatest();
+loadHistory();
 </script>
 
 </body>
