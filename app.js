@@ -1,10 +1,10 @@
-// -----------------------------------------------------
-// Firebase 初期化
-// -----------------------------------------------------
+// script.js
+
+// ---------- Firebase init ----------
 const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
-  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebaseio.com",
+  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "dronesgps-f3616",
   storageBucket: "dronesgps-f3616.appspot.com",
   messagingSenderId: "1068524436957",
@@ -13,127 +13,121 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// -----------------------------------------------------
-// Leaflet 地図初期化
-// -----------------------------------------------------
+// ---------- Leaflet map ----------
 const initialLatLng = [35.0, 135.0];
 const map = L.map('map').setView(initialLatLng, 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
 
 let marker = L.marker(initialLatLng).addTo(map);
 let polyline = L.polyline([], { color: 'blue' }).addTo(map);
+let track = [];
 
-let trackHistory = [];
-
-
-// -----------------------------------------------------
-// Chart.js 初期化
-// -----------------------------------------------------
+// ---------- Chart.js ----------
 const ctx = document.getElementById('chart').getContext('2d');
-
 const chart = new Chart(ctx, {
   type: 'line',
   data: {
     labels: [],
     datasets: [
-      { label: "Load Power", data: [], borderColor: "red", fill: false },
-      { label: "Battery Power", data: [], borderColor: "green", fill: false },
-      { label: "System Power", data: [], borderColor: "blue", fill: false },
+      { label: 'Panel Power', data: [], borderColor: 'red', fill: false },
+      { label: 'Battery Power', data: [], borderColor: 'green', fill: false },
+      { label: 'Load Power', data: [], borderColor: 'blue', fill: false }
     ]
   },
   options: {
     responsive: true,
     scales: {
-      x: { title: { display: true, text: "Time" }},
-      y: { title: { display: true, text: "Power [W]" }}
+      x: { display: true, title: { display: true, text: 'Time' } },
+      y: { display: true, title: { display: true, text: 'Power [W]' } }
     }
   }
 });
 
+// helpers
+function safeNum(v) { return (v === null || v === undefined) ? null : Number(v); }
 
-// -----------------------------------------------------
-// 最新値を監視（/latest）
-// -----------------------------------------------------
-db.ref("latest").on("value", snapshot => {
-  const item = snapshot.val();
-  const liveDiv = document.getElementById("liveData");
+// ---------- Realtime latest listener ----------
+db.ref('latest').on('value', snap => {
+  const data = snap.val();
+  if (!data) return;
 
-  if (!item) {
-    liveDiv.innerHTML = "No data";
-    return;
-  }
+  const ts = data.timestamp || new Date().toISOString();
+  document.getElementById('ts').textContent = ts;
 
-  // 電力計算
-  const loadP = item.INA226_Load.voltage * item.INA226_Load.current / 1000;
-  const liP   = item.INA226_Battery.voltage * item.INA226_Battery.current / 1000;
-  const sysP  = item.INA219_System.voltage * item.INA219_System.current / 1000;
+  // read voltages and currents (currents are mA); compute power W = V * (mA/1000)
+  const panel_v = safeNum(data.panel?.voltage);
+  const panel_i = safeNum(data.panel?.current_mA);
+  const batt_v = safeNum(data.battery?.voltage);
+  const batt_i = safeNum(data.battery?.current_mA);
+  const load_v = safeNum(data.load?.voltage);
+  const load_i = safeNum(data.load?.current_mA);
 
-  // 右パネルの表示
-  liveDiv.innerHTML = `
-      <b>Timestamp:</b> ${item.timestamp}<br><br>
+  const panel_p = (panel_v !== null && panel_i !== null) ? panel_v * (panel_i / 1000) : null;
+  const batt_p = (batt_v !== null && batt_i !== null) ? batt_v * (batt_i / 1000) : null;
+  const load_p = (load_v !== null && load_i !== null) ? load_v * (load_i / 1000) : null;
 
-      <b>Load:</b><br>
-      V=${item.INA226_Load.voltage.toFixed(3)} V<br>
-      I=${item.INA226_Load.current.toFixed(1)} mA<br>
-      P=${loadP.toFixed(2)} W<br><br>
+  document.getElementById('panel-v').textContent = panel_v !== null ? panel_v.toFixed(3) : '--';
+  document.getElementById('panel-i').textContent = panel_i !== null ? panel_i.toFixed(1) : '--';
+  document.getElementById('panel-p').textContent = panel_p !== null ? panel_p.toFixed(2) : '--';
 
-      <b>Battery:</b><br>
-      V=${item.INA226_Battery.voltage.toFixed(3)} V<br>
-      I=${item.INA226_Battery.current.toFixed(1)} mA<br>
-      P=${liP.toFixed(2)} W<br><br>
+  document.getElementById('batt-v').textContent = batt_v !== null ? batt_v.toFixed(3) : '--';
+  document.getElementById('batt-i').textContent = batt_i !== null ? batt_i.toFixed(1) : '--';
+  document.getElementById('batt-p').textContent = batt_p !== null ? batt_p.toFixed(2) : '--';
 
-      <b>System:</b><br>
-      V=${item.INA219_System.voltage.toFixed(3)} V<br>
-      I=${item.INA219_System.current.toFixed(1)} mA<br>
-      P=${sysP.toFixed(2)} W<br>
-  `;
+  document.getElementById('load-v').textContent = load_v !== null ? load_v.toFixed(3) : '--';
+  document.getElementById('load-i').textContent = load_i !== null ? load_i.toFixed(1) : '--';
+  document.getElementById('load-p').textContent = load_p !== null ? load_p.toFixed(2) : '--';
 
-  // 地図更新
-  const lat = item.GPS.lat;
-  const lng = item.GPS.lng;
-
-  if (lat !== 0 && lng !== 0) {
-    const latlng = [lat, lng];
-    trackHistory.push(latlng);
-
-    marker.setLatLng(latlng);
+  // Map update if GPS present
+  const lat = data.GPS?.lat;
+  const lng = data.GPS?.lng;
+  if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
+    const pos = [lat, lng];
+    track.push(pos);
+    marker.setLatLng(pos);
     marker.bindPopup(
-      `Load: ${loadP.toFixed(2)} W<br>
-       Battery: ${liP.toFixed(2)} W<br>
-       System: ${sysP.toFixed(2)} W`
+      `Panel: ${panel_p !== null ? panel_p.toFixed(2) : '--'} W<br>` +
+      `Battery: ${batt_p !== null ? batt_p.toFixed(2) : '--'} W<br>` +
+      `Load: ${load_p !== null ? load_p.toFixed(2) : '--'} W`
     );
-
-    polyline.setLatLngs(trackHistory);
-    map.setView(latlng, 16);
+    polyline.setLatLngs(track);
+    map.setView(pos, 16);
   }
 });
 
-
-// -----------------------------------------------------
-// 履歴 /history からチャートを生成
-// -----------------------------------------------------
-db.ref("history").limitToLast(50).on("value", snapshot => {
-  const data = snapshot.val();
+// ---------- History -> Chart (last 100) ----------
+db.ref('sensors').orderByKey().limitToLast(100).on('value', snap => {
+  const data = snap.val();
   if (!data) return;
 
+  const keys = Object.keys(data).sort(); // ascending (oldest->newest)
   const times = [];
-  const loadPower = [];
-  const batteryPower = [];
-  const systemPower = [];
+  const p_panel = [];
+  const p_batt = [];
+  const p_load = [];
 
-  Object.keys(data).forEach(key => {
-    const item = data[key];
+  keys.forEach(k => {
+    const item = data[k];
+    const ts = item.timestamp ? item.timestamp.slice(11,19) : k;
+    times.push(ts);
 
-    times.push(item.timestamp.slice(11,19)); // HH:MM:SS
+    const pv = safeNum(item.panel?.voltage);
+    const pi = safeNum(item.panel?.current_mA);
+    const bv = safeNum(item.battery?.voltage);
+    const bi = safeNum(item.battery?.current_mA);
+    const lv = safeNum(item.load?.voltage);
+    const li = safeNum(item.load?.current_mA);
 
-    loadPower.push(item.INA226_Load.voltage * item.INA226_Load.current / 1000);
-    batteryPower.push(item.INA226_Battery.voltage * item.INA226_Battery.current / 1000);
-    systemPower.push(item.INA219_System.voltage * item.INA219_System.current / 1000);
+    p_panel.push((pv !== null && pi !== null) ? pv * (pi/1000) : null);
+    p_batt.push((bv !== null && bi !== null) ? bv * (bi/1000) : null);
+    p_load.push((lv !== null && li !== null) ? lv * (li/1000) : null);
   });
 
   chart.data.labels = times;
-  chart.data.datasets[0].data = loadPower;
-  chart.data.datasets[1].data = batteryPower;
-  chart.data.datasets[2].data = systemPower;
+  chart.data.datasets[0].data = p_panel;
+  chart.data.datasets[1].data = p_batt;
+  chart.data.datasets[2].data = p_load;
   chart.update();
 });
