@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Drone Dashboard Ultimate</title>
+<title>Drone Dashboard Ultimate Fixed</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -61,18 +61,20 @@
 <div id="graph-section" class="section active">
   
   <div class="sub-nav-container">
-    <button class="sub-nav-btn active" onclick="switchGraphMode('overview')">全体 (Overview)</button>
-    <button class="sub-nav-btn" onclick="switchGraphMode('panel')">PANEL 詳細</button>
-    <button class="sub-nav-btn" onclick="switchGraphMode('batt')">BATTERY 詳細</button>
-    <button class="sub-nav-btn" onclick="switchGraphMode('load')">LOAD 詳細</button>
+    <button id="sub-btn-overview" class="sub-nav-btn active">全体 (Overview)</button>
+    <button id="sub-btn-panel" class="sub-nav-btn">PANEL 詳細</button>
+    <button id="sub-btn-batt" class="sub-nav-btn">BATTERY 詳細</button>
+    <button id="sub-btn-load" class="sub-nav-btn">LOAD 詳細</button>
   </div>
 
   <div id="view-overview" class="graph-view active">
     <div class="card" style="max-width:32%;">
-      <h3>Panel (Data Source: Battery)</h3> <div class="chart-container-sm"><canvas id="chart-panel-all"></canvas></div>
+      <h3>Panel (Data Source: Battery)</h3> 
+      <div class="chart-container-sm"><canvas id="chart-panel-all"></canvas></div>
     </div>
     <div class="card" style="max-width:32%;">
-      <h3>Battery (Data Source: Panel)</h3> <div class="chart-container-sm"><canvas id="chart-batt-all"></canvas></div>
+      <h3>Battery (Data Source: Panel)</h3> 
+      <div class="chart-container-sm"><canvas id="chart-batt-all"></canvas></div>
     </div>
     <div class="card" style="max-width:32%;">
       <h3>Load</h3>
@@ -172,18 +174,15 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 // ==========================================
-// 1. グローバル変数・データ保持
+// 1. グローバル変数
 // ==========================================
-// 受信した全データを配列としてメモリに保持（履歴機能用）
 let allDataLog = []; 
 const MAX_GRAPH_POINTS = 50;
 let isHourlyMode = false;
-
-// 日付ピッカーの初期値を今日に
 document.getElementById('date-picker').valueAsDate = new Date();
 
 // ==========================================
-// 2. UI切り替えロジック
+// 2. UI切り替えロジック (イベントリスナー方式)
 // ==========================================
 const sections = {
   graphs: document.getElementById('graph-section'),
@@ -196,48 +195,61 @@ const mainButtons = {
   table: document.getElementById('btn-table')
 };
 
-// メインタブ切り替え
-window.showSection = (name) => {
+function switchSection(name) {
   Object.values(sections).forEach(el => el.classList.remove('active'));
   Object.values(mainButtons).forEach(el => el.classList.remove('active'));
+  
   sections[name].classList.add('active');
   mainButtons[name].classList.add('active');
 
+  // マップのリサイズ対策
   if (name === 'map') {
     setTimeout(() => map.invalidateSize(), 200);
   }
-};
-mainButtons.graphs.onclick = () => showSection('graphs');
-mainButtons.map.onclick = () => showSection('map');
-mainButtons.table.onclick = () => showSection('table');
+}
 
-// グラフ内サブメニュー切り替え
-window.switchGraphMode = (mode) => {
-  // ボタンのアクティブ化
-  document.querySelectorAll('.sub-nav-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active'); // クリックされたボタン
+// ボタンにイベントを登録 (これで動きます)
+mainButtons.graphs.addEventListener('click', () => switchSection('graphs'));
+mainButtons.map.addEventListener('click', () => switchSection('map'));
+mainButtons.table.addEventListener('click', () => switchSection('table'));
 
-  // ビューの切り替え
-  document.querySelectorAll('.graph-view').forEach(div => div.classList.remove('active'));
-  document.getElementById(`view-${mode}`).classList.add('active');
+
+// --- グラフ内サブメニューの切り替えロジック ---
+const subButtons = {
+  overview: document.getElementById('sub-btn-overview'),
+  panel: document.getElementById('sub-btn-panel'),
+  batt: document.getElementById('sub-btn-batt'),
+  load: document.getElementById('sub-btn-load')
+};
+const subViews = {
+  overview: document.getElementById('view-overview'),
+  panel: document.getElementById('view-panel'),
+  batt: document.getElementById('view-batt'),
+  load: document.getElementById('view-load')
 };
 
-// テーブル集計モード切り替え
-const btnHourly = document.getElementById('btn-toggle-hourly');
-btnHourly.onclick = () => {
-  isHourlyMode = !isHourlyMode;
-  btnHourly.innerText = isHourlyMode ? "1時間ごとにまとめる (ON)" : "1時間ごとにまとめる (OFF)";
-  btnHourly.style.background = isHourlyMode ? "#ff6f61" : "#e0e0e0";
-  btnHourly.style.color = isHourlyMode ? "white" : "black";
-  renderTable(); // 再描画
-};
-document.getElementById('date-picker').onchange = () => renderTable();
+function switchGraphMode(mode) {
+  // 全ボタンのスタイルリセット
+  Object.values(subButtons).forEach(btn => btn.classList.remove('active'));
+  // 全ビューを非表示
+  Object.values(subViews).forEach(view => view.classList.remove('active'));
+
+  // 対象をアクティブに
+  subButtons[mode].classList.add('active');
+  subViews[mode].classList.add('active');
+}
+
+// サブボタンにイベント登録
+subButtons.overview.addEventListener('click', () => switchGraphMode('overview'));
+subButtons.panel.addEventListener('click', () => switchGraphMode('panel'));
+subButtons.batt.addEventListener('click', () => switchGraphMode('batt'));
+subButtons.load.addEventListener('click', () => switchGraphMode('load'));
+
 
 // ==========================================
 // 3. チャート初期化 (Chart.js)
 // ==========================================
-// --- 設定生成関数 ---
-function createConfig(label, color, type='line', yTitle='Value') {
+function createConfig(label, color, yTitle='Value') {
   return {
     type: 'line',
     data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, backgroundColor: color, tension: 0.3 }] },
@@ -251,7 +263,6 @@ function createConfig(label, color, type='line', yTitle='Value') {
   };
 }
 
-// 概要用 (3つのパラメータを1つのグラフに)
 function createOverviewConfig() {
   return {
     type: 'line',
@@ -275,26 +286,20 @@ function createOverviewConfig() {
   };
 }
 
-// チャートインスタンス作成
-// 1. Overview Charts
+// インスタンス作成
 const chartPanelAll = new Chart(document.getElementById('chart-panel-all'), createOverviewConfig());
 const chartBattAll  = new Chart(document.getElementById('chart-batt-all'), createOverviewConfig());
 const chartLoadAll  = new Chart(document.getElementById('chart-load-all'), createOverviewConfig());
 
-// 2. Detail Charts (Panel)
-const chartPanelV = new Chart(document.getElementById('chart-panel-v'), createConfig('Voltage', 'red', 'line', 'Volts'));
-const chartPanelI = new Chart(document.getElementById('chart-panel-i'), createConfig('Current', 'blue', 'line', 'Amps'));
+const chartPanelV = new Chart(document.getElementById('chart-panel-v'), createConfig('Voltage', 'red', 'Volts'));
+const chartPanelI = new Chart(document.getElementById('chart-panel-i'), createConfig('Current', 'blue', 'Amps'));
 
-// 3. Detail Charts (Battery)
-const chartBattV = new Chart(document.getElementById('chart-batt-v'), createConfig('Voltage', 'orange', 'line', 'Volts'));
-const chartBattI = new Chart(document.getElementById('chart-batt-i'), createConfig('Current', 'cyan', 'line', 'Amps'));
+const chartBattV = new Chart(document.getElementById('chart-batt-v'), createConfig('Voltage', 'orange', 'Volts'));
+const chartBattI = new Chart(document.getElementById('chart-batt-i'), createConfig('Current', 'cyan', 'Amps'));
 
-// 4. Detail Charts (Load)
-const chartLoadV = new Chart(document.getElementById('chart-load-v'), createConfig('Voltage', 'purple', 'line', 'Volts'));
-const chartLoadI = new Chart(document.getElementById('chart-load-i'), createConfig('Current', 'magenta', 'line', 'Amps'));
+const chartLoadV = new Chart(document.getElementById('chart-load-v'), createConfig('Voltage', 'purple', 'Volts'));
+const chartLoadI = new Chart(document.getElementById('chart-load-i'), createConfig('Current', 'magenta', 'Amps'));
 
-
-// データ更新用関数
 function pushDataToChart(chart, label, ...values) {
   chart.data.labels.push(label);
   values.forEach((v, i) => {
@@ -315,36 +320,113 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:
 let marker = null;
 
 // ==========================================
-// 5. データ受信メインロジック
+// 5. データ受信 & テーブル処理
 // ==========================================
 onValue(ref(db, "latest"), (snap) => {
   const raw = snap.val();
   if (!raw) return;
 
-  // --- ★重要: データの入れ替えロジック★ ---
-  // User: "batteryとPANELの結果が違うので入れ替えて"
-  // ソース(raw.battery) を UI上のPanelとして扱う
-  // ソース(raw.panel)   を UI上のBatteryとして扱う
+  // --- データの入れ替え (Batteryデータ -> Panel UIへ) ---
   const data = {
-    panel:   raw.battery || {},  // SWAP
-    battery: raw.panel   || {},  // SWAP
+    panel:   raw.battery || {}, 
+    battery: raw.panel   || {}, 
     load:    raw.load    || {},
     GPS:     raw.GPS     || {},
     timestamp: raw.timestamp
   };
 
-  const now = new Date().toLocaleTimeString(); // HH:MM:SS
-  const fullDate = new Date(); // Date Object
+  const now = new Date().toLocaleTimeString();
+  const fullDate = new Date();
 
-  // 値の取得 (安全策)
   const pv = data.panel.voltage ?? 0, pi = data.panel.current ?? 0, pp = data.panel.power ?? 0;
   const bv = data.battery.voltage ?? 0, bi = data.battery.current ?? 0, bp = data.battery.power ?? 0;
   const lv = data.load.voltage ?? 0, li = data.load.current ?? 0, lp = data.load.power ?? 0;
 
-  // 1. グラフ更新 (Overview)
+  // グラフ更新
   pushDataToChart(chartPanelAll, now, pv, pi, pp);
   pushDataToChart(chartBattAll,  now, bv, bi, bp);
   pushDataToChart(chartLoadAll,  now, lv, li, lp);
 
-  // 2. グラフ更新 (Details)
   pushDataToChart(chartPanelV, now, pv);
+  pushDataToChart(chartPanelI, now, pi);
+  pushDataToChart(chartBattV,  now, bv);
+  pushDataToChart(chartBattI,  now, bi);
+  pushDataToChart(chartLoadV,  now, lv);
+  pushDataToChart(chartLoadI,  now, li);
+
+  // マップ更新
+  if (data.GPS.lat && data.GPS.lng) {
+    const pos = [data.GPS.lat, data.GPS.lng];
+    if (!marker) {
+      marker = L.marker(pos).addTo(map);
+      marker.bindPopup(`Power: ${pp}W`).openPopup();
+    } else {
+      marker.setLatLng(pos).setPopupContent(`Power: ${pp}W`);
+    }
+    map.panTo(pos);
+  }
+
+  // ログ保存
+  allDataLog.unshift({ dateObj: fullDate, timeStr: now, pv, pi, pp, bv, bi, bp, lv, li, lp });
+  renderTable();
+});
+
+// テーブル用イベント
+const btnHourly = document.getElementById('btn-toggle-hourly');
+btnHourly.addEventListener('click', () => {
+  isHourlyMode = !isHourlyMode;
+  btnHourly.innerText = isHourlyMode ? "1時間ごとにまとめる (ON)" : "1時間ごとにまとめる (OFF)";
+  btnHourly.style.background = isHourlyMode ? "#ff6f61" : "#e0e0e0";
+  btnHourly.style.color = isHourlyMode ? "white" : "black";
+  renderTable();
+});
+document.getElementById('date-picker').addEventListener('change', () => renderTable());
+
+function renderTable() {
+  const tbody = document.querySelector('#data-table tbody');
+  tbody.innerHTML = '';
+
+  const selectedDateStr = document.getElementById('date-picker').value;
+  const filtered = allDataLog.filter(d => d.dateObj.toISOString().slice(0, 10) === selectedDateStr);
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10">データなし (受信待ち)</td></tr>';
+    return;
+  }
+
+  if (!isHourlyMode) {
+    filtered.forEach(d => {
+      tbody.innerHTML += `<tr>
+        <td>${d.timeStr}</td>
+        <td>${d.pv}</td><td>${d.pi}</td><td>${d.pp}</td>
+        <td>${d.bv}</td><td>${d.bi}</td><td>${d.bp}</td>
+        <td>${d.lv}</td><td>${d.li}</td><td>${d.lp}</td>
+      </tr>`;
+    });
+  } else {
+    const groups = {};
+    filtered.forEach(d => {
+      const h = d.dateObj.getHours();
+      if (!groups[h]) groups[h] = { count:0, pv:0, pi:0, pp:0, bv:0, bi:0, bp:0, lv:0, li:0, lp:0 };
+      const g = groups[h];
+      g.count++;
+      g.pv += Number(d.pv); g.pi += Number(d.pi); g.pp += Number(d.pp);
+      g.bv += Number(d.bv); g.bi += Number(d.bi); g.bp += Number(d.bp);
+      g.lv += Number(d.lv); g.li += Number(d.li); g.lp += Number(d.lp);
+    });
+
+    Object.keys(groups).sort((a,b)=>b-a).forEach(h => {
+      const g = groups[h];
+      const avg = (val) => (val / g.count).toFixed(2);
+      tbody.innerHTML += `<tr class="summary-row">
+        <td>${h}:00 - ${h}:59 (n=${g.count})</td>
+        <td>${avg(g.pv)}</td><td>${avg(g.pi)}</td><td>${avg(g.pp)}</td>
+        <td>${avg(g.bv)}</td><td>${avg(g.bi)}</td><td>${avg(g.bp)}</td>
+        <td>${avg(g.lv)}</td><td>${avg(g.li)}</td><td>${avg(g.lp)}</td>
+      </tr>`;
+    });
+  }
+}
+</script>
+</body>
+</html>
