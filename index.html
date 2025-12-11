@@ -11,14 +11,10 @@ h2 { text-align: center; }
 #buttons { text-align: center; margin-bottom: 10px; }
 button { margin: 5px; padding: 10px 20px; font-size: 16px; border-radius: 8px; border:none; background: #007bff; color: white; cursor: pointer; }
 button:hover { background: #0056b3; }
-
 .section { display:none; text-align: center; margin-top:10px; }
-
 .chart-card { display:inline-block; background: white; border-radius: 12px; padding: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 500px; height: 300px; margin: 10px; }
 canvas { width: 100% !important; height: 100% !important; }
-
 #map { height: 600px; width: 100%; border-radius: 12px; background: #ddd; }
-
 table { border-collapse: collapse; margin: 10px auto; }
 td, th { border: 1px solid #999; padding: 5px 10px; text-align: center; }
 </style>
@@ -32,37 +28,48 @@ td, th { border: 1px solid #999; padding: 5px 10px; text-align: center; }
   <button onclick="showSection('past')">過去データ</button>
 </div>
 
-<!-- グラフ表示セクション -->
+<!-- グラフ表示 -->
 <div id="charts" class="section">
   <div class="chart-card"><canvas id="chart-panel"></canvas></div>
   <div class="chart-card"><canvas id="chart-batt"></canvas></div>
   <div class="chart-card"><canvas id="chart-load"></canvas></div>
 </div>
 
-<!-- マップ表示セクション -->
+<!-- マップ表示 -->
 <div id="map-section" class="section">
   <div id="map"></div>
 </div>
 
-<!-- 過去データセクション -->
+<!-- 過去データ -->
 <div id="past-section" class="section">
   <input type="date" id="date-select"/>
-  <div id="past-data"><table id="past-table"><thead><tr><th>時間</th><th>Panel V</th><th>Panel I</th><th>Panel P</th><th>Battery V</th><th>Battery I</th><th>Battery P</th><th>Load V</th><th>Load I</th><th>Load P</th></tr></thead><tbody></tbody></table></div>
+  <div id="past-data">
+    <table id="past-table">
+      <thead>
+        <tr>
+          <th>時間</th>
+          <th>Panel V</th><th>Panel I</th><th>Panel P</th>
+          <th>Battery V</th><th>Battery I</th><th>Battery P</th>
+          <th>Load V</th><th>Load I</th><th>Load P</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getDatabase, ref, onValue, get, child } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-function showSection(section){
-  document.getElementById('charts').style.display = (section==='charts') ? 'block' : 'none';
-  document.getElementById('map-section').style.display = (section==='map') ? 'block' : 'none';
-  document.getElementById('past-section').style.display = (section==='past') ? 'block' : 'none';
+function showSection(sectionId){
+  document.getElementById('charts').style.display = (sectionId==='charts')?'block':'none';
+  document.getElementById('map-section').style.display = (sectionId==='map')?'block':'none';
+  document.getElementById('past-section').style.display = (sectionId==='past')?'block':'none';
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  // Firebase 初期化
   const firebaseConfig = {
     apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
     authDomain: "dronesgps-f3616.firebaseapp.com",
@@ -76,23 +83,17 @@ window.addEventListener("DOMContentLoaded", () => {
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  // DOM
-  const ts = document.createElement('div');
-  const panelV = null, panelI=null, panelP=null;
-  const pv = panelV, pi = panelI, pp = panelP;
-
   // マップ初期化
   const map = L.map("map").setView([35.0, 135.0], 13);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
   let marker = null;
 
-  // Chart.js 初期化
   const MAX_POINTS = 50;
   const panelData={labels:[],voltage:[],current:[],power:[]};
   const battData={labels:[],voltage:[],current:[],power:[]};
   const loadData={labels:[],voltage:[],current:[],power:[]};
 
-  function createChart(ctx, dataObj){
+  function createChart(ctx,dataObj){
     return new Chart(ctx,{
       type:'line',
       data:{labels:dataObj.labels,datasets:[
@@ -104,46 +105,40 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const chartPanel = createChart(document.getElementById('chart-panel'),panelData);
-  const chartBatt = createChart(document.getElementById('chart-batt'),battData);
-  const chartLoad = createChart(document.getElementById('chart-load'),loadData);
+  const chartPanel=createChart(document.getElementById('chart-panel'),panelData);
+  const chartBatt=createChart(document.getElementById('chart-batt'),battData);
+  const chartLoad=createChart(document.getElementById('chart-load'),loadData);
 
-  // Realtime listener
   const latestRef = ref(db,"latest");
-  onValue(latestRef, snapshot=>{
-    const v = snapshot.val();
+  onValue(latestRef,snapshot=>{
+    const v=snapshot.val();
     if(!v) return;
 
-    // マップ更新
-    if(v.GPS?.lat && v.GPS?.lng){
-      if(!marker){
-        marker=L.marker([v.GPS.lat,v.GPS.lng]).addTo(map);
-      }else{
-        marker.setLatLng([v.GPS.lat,v.GPS.lng]);
-      }
-      const popupText = `Panel: ${v.panel?.voltage ?? 0} V, ${v.panel?.current ?? 0} A, P:${v.panel?.power ?? 0} W<br>
-                         Batt: ${v.battery?.voltage ?? 0} V, ${v.battery?.current ?? 0} A, P:${v.battery?.power ?? 0} W<br>
-                         Load: ${v.load?.voltage ?? 0} V, ${v.load?.current ?? 0} A, P:${v.load?.power ?? 0} W`;
-      marker.bindPopup(popupText);
-      map.setView([v.GPS.lat,v.GPS.lng],15);
-    }
-
-    // データ追加
-    const now = new Date().toLocaleTimeString();
-    function pushData(arr, voltage, current, power){
+    // データ追加 (パネル・バッテリ順序修正)
+    const now=new Date().toLocaleTimeString();
+    function pushData(arr,voltage,current,power){
       arr.labels.push(now); arr.voltage.push(voltage); arr.current.push(current); arr.power.push(power);
-      if(arr.labels.length>MAX_POINTS){ arr.labels.shift(); arr.voltage.shift(); arr.current.shift(); arr.power.shift(); }
+      if(arr.labels.length>MAX_POINTS){arr.labels.shift();arr.voltage.shift();arr.current.shift();arr.power.shift();}
     }
     pushData(panelData,v.panel?.voltage ?? 0,v.panel?.current ?? 0,v.panel?.power ?? 0);
     pushData(battData,v.battery?.voltage ?? 0,v.battery?.current ?? 0,v.battery?.power ?? 0);
     pushData(loadData,v.load?.voltage ?? 0,v.load?.current ?? 0,v.load?.power ?? 0);
     chartPanel.update(); chartBatt.update(); chartLoad.update();
+
+    // マップ更新
+    if(v.GPS?.lat && v.GPS?.lng){
+      if(!marker){marker=L.marker([v.GPS.lat,v.GPS.lng]).addTo(map);}
+      else{marker.setLatLng([v.GPS.lat,v.GPS.lng]);}
+      marker.bindPopup(`Panel: ${v.panel?.voltage??0}V, ${v.panel?.current??0}A, P:${v.panel?.power??0}W<br>
+                        Battery: ${v.battery?.voltage??0}V, ${v.battery?.current??0}A, P:${v.battery?.power??0}W<br>
+                        Load: ${v.load?.voltage??0}V, ${v.load?.current??0}A, P:${v.load?.power??0}W`);
+      map.setView([v.GPS.lat,v.GPS.lng],15);
+    }
   });
 
   // 過去データ
   const dateSelect=document.getElementById('date-select');
   const pastTable=document.querySelector('#past-table tbody');
-
   dateSelect.addEventListener('change',async ()=>{
     const dateVal=dateSelect.value; if(!dateVal) return;
     pastTable.innerHTML='';
@@ -159,15 +154,15 @@ window.addEventListener("DOMContentLoaded", () => {
       if(entryDate===dateVal){
         const row=document.createElement('tr');
         row.innerHTML=`<td>${new Date(entry.timestamp*1000).toLocaleTimeString()}</td>
-          <td>${entry.panel?.voltage ?? 0}</td><td>${entry.panel?.current ?? 0}</td><td>${entry.panel?.power ?? 0}</td>
-          <td>${entry.battery?.voltage ?? 0}</td><td>${entry.battery?.current ?? 0}</td><td>${entry.battery?.power ?? 0}</td>
-          <td>${entry.load?.voltage ?? 0}</td><td>${entry.load?.current ?? 0}</td><td>${entry.load?.power ?? 0}</td>`;
+          <td>${entry.panel?.voltage??0}</td><td>${entry.panel?.current??0}</td><td>${entry.panel?.power??0}</td>
+          <td>${entry.battery?.voltage??0}</td><td>${entry.battery?.current??0}</td><td>${entry.battery?.power??0}</td>
+          <td>${entry.load?.voltage??0}</td><td>${entry.load?.current??0}</td><td>${entry.load?.power??0}</td>`;
         pastTable.appendChild(row);
       }
     });
   });
 
-  // 初期表示はグラフ
+  // 初期表示
   showSection('charts');
 });
 </script>
