@@ -2,10 +2,10 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Drone Dashboard Ultimate Fixed</title>
+<title>Drone Dashboard Ultimate Fixed (Fixed Time Axis)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> <style>
   /* ===== CSS設定 ===== */
   body { font-family: 'Arial', sans-serif; margin: 0; background: #f4f6f8; color: #333; }
 
@@ -16,7 +16,7 @@
   header button.main-nav.active { background: #ff6f61; box-shadow: 0 0 10px rgba(255,111,97,0.5); }
 
   /* セクション共通 */
-  .section { display: none; padding: 20px; max-width: 1100px; margin: 0 auto; animation: fadeIn 0.5s; }
+  .section { display: none; padding: 20px; max-width: 1200px; margin: 0 auto; animation: fadeIn 0.5s; } /* 最大幅を拡大 */
   .section.active { display: block; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -26,15 +26,15 @@
   .sub-nav-btn:hover { background: #eef; }
   .sub-nav-btn.active { background: #3b3b5f; color: white; }
 
-  .graph-view { display: none; } /* デフォルト非表示 */
+  .graph-view { display: none; }
   .graph-view.active { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
   
-  .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%; margin-bottom: 20px; }
+  .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%; margin-bottom: 20px; } /* グラフ幅を100%に */
   .card h3 { margin-top: 0; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; color: #1e1e2f; text-align: center; }
   
   /* グラフキャンバスのサイズ制御 */
-  .chart-container-lg { position: relative; height: 350px; width: 100%; } /* 詳細用 */
-  .chart-container-sm { position: relative; height: 250px; width: 100%; } /* 全体用 */
+  .chart-container-lg { position: relative; height: 400px; width: 100%; } /* 詳細用グラフを縦に大きく */
+  .chart-container-sm { position: relative; height: 350px; width: 100%; } /* Overview用グラフを縦に大きく */
 
   /* --- マップ --- */
   #map-container { height: 600px; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -67,16 +67,16 @@
     <button id="sub-btn-load" class="sub-nav-btn">LOAD 詳細</button>
   </div>
 
-  <div id="view-overview" class="graph-view active">
-    <div class="card" style="max-width:32%;">
+  <div id="view-overview" class="graph-view active" style="flex-direction: column;">
+    <div class="card">
       <h3>Panel (Data Source: Battery)</h3> 
       <div class="chart-container-sm"><canvas id="chart-panel-all"></canvas></div>
     </div>
-    <div class="card" style="max-width:32%;">
+    <div class="card">
       <h3>Battery (Data Source: Panel)</h3> 
       <div class="chart-container-sm"><canvas id="chart-batt-all"></canvas></div>
     </div>
-    <div class="card" style="max-width:32%;">
+    <div class="card">
       <h3>Load</h3>
       <div class="chart-container-sm"><canvas id="chart-load-all"></canvas></div>
     </div>
@@ -154,12 +154,13 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { startOfDay, addDays, getUnixTime, fromUnixTime, format } from 'date-fns';
+
 // ==========================================
 // 0. Firebase Setup
 // ==========================================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-
 const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
@@ -174,16 +175,36 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 // ==========================================
-// 1. グローバル変数
+// 1. グローバル変数 & 日付管理
 // ==========================================
 let allDataLog = []; 
-const MAX_GRAPH_POINTS = 50;
 let isHourlyMode = false;
+let currentDay = startOfDay(new Date()); // 今日の0時 JST (ローカルタイムゾーン)
+
 document.getElementById('date-picker').valueAsDate = new Date();
 
 // ==========================================
-// 2. UI切り替えロジック (イベントリスナー方式)
+// 2. ユーティリティ関数
 // ==========================================
+
+/**
+ * タイムスタンプをJST（日本時間）のDateオブジェクトに変換する
+ * @param {number} timestamp - Unix Timestamp (秒)
+ * @returns {Date} JSTでのDateオブジェクト
+ */
+const toJSTDate = (timestamp) => {
+    // タイムスタンプは秒単位で入っていると仮定
+    const date = fromUnixTime(timestamp); 
+    // Dateオブジェクトはブラウザのローカルタイムゾーンで表示されるため、
+    // ここで敢えてJSTに変換する必要はないが、時刻表示の際にJSTとして扱う
+    return date; 
+};
+
+
+// ==========================================
+// 3. UI切り替えロジック
+// ==========================================
+// (前回のコードから変更なし)
 const sections = {
   graphs: document.getElementById('graph-section'),
   map: document.getElementById('map-section'),
@@ -194,27 +215,19 @@ const mainButtons = {
   map: document.getElementById('btn-map'),
   table: document.getElementById('btn-table')
 };
-
 function switchSection(name) {
   Object.values(sections).forEach(el => el.classList.remove('active'));
   Object.values(mainButtons).forEach(el => el.classList.remove('active'));
-  
   sections[name].classList.add('active');
   mainButtons[name].classList.add('active');
-
-  // マップのリサイズ対策
   if (name === 'map') {
     setTimeout(() => map.invalidateSize(), 200);
   }
 }
-
-// ボタンにイベントを登録 (これで動きます)
 mainButtons.graphs.addEventListener('click', () => switchSection('graphs'));
 mainButtons.map.addEventListener('click', () => switchSection('map'));
 mainButtons.table.addEventListener('click', () => switchSection('table'));
 
-
-// --- グラフ内サブメニューの切り替えロジック ---
 const subButtons = {
   overview: document.getElementById('sub-btn-overview'),
   panel: document.getElementById('sub-btn-panel'),
@@ -227,19 +240,12 @@ const subViews = {
   batt: document.getElementById('view-batt'),
   load: document.getElementById('view-load')
 };
-
 function switchGraphMode(mode) {
-  // 全ボタンのスタイルリセット
   Object.values(subButtons).forEach(btn => btn.classList.remove('active'));
-  // 全ビューを非表示
   Object.values(subViews).forEach(view => view.classList.remove('active'));
-
-  // 対象をアクティブに
   subButtons[mode].classList.add('active');
   subViews[mode].classList.add('active');
 }
-
-// サブボタンにイベント登録
 subButtons.overview.addEventListener('click', () => switchGraphMode('overview'));
 subButtons.panel.addEventListener('click', () => switchGraphMode('panel'));
 subButtons.batt.addEventListener('click', () => switchGraphMode('batt'));
@@ -247,38 +253,48 @@ subButtons.load.addEventListener('click', () => switchGraphMode('load'));
 
 
 // ==========================================
-// 3. チャート初期化 (Chart.js)
+// 4. チャート初期化 (Chart.js)
 // ==========================================
-function createConfig(label, color, yTitle='Value') {
-  return {
-    type: 'line',
-    data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, backgroundColor: color, tension: 0.3 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      scales: {
-        x: { display: false },
-        y: { title: { display: true, text: yTitle } }
-      }
-    }
-  };
+
+/**
+ * グラフのX軸（時間軸）設定を取得する関数
+ * @returns {object} Chart.jsのscales.x設定
+ */
+function getTimeAxisConfig() {
+    const startOfToday = startOfDay(currentDay);
+    const endOfToday = addDays(startOfToday, 1);
+    
+    return {
+        type: 'time',
+        time: {
+            unit: 'hour',
+            displayFormats: { hour: 'HH:mm' }
+        },
+        // スケールを0時から24時で固定
+        min: startOfToday.getTime(),
+        max: endOfToday.getTime(),
+        title: {
+            display: true,
+            text: '時刻 (00:00 - 24:00 JST)'
+        }
+    };
 }
 
+// Overview用設定
 function createOverviewConfig() {
   return {
     type: 'line',
-    data: {
-      labels: [],
-      datasets: [
+    data: { datasets: [
         { label: 'V', data: [], borderColor: 'red', yAxisID: 'y' },
         { label: 'I', data: [], borderColor: 'blue', yAxisID: 'y' },
         { label: 'P', data: [], borderColor: 'green', borderDash:[5,5], yAxisID: 'y1' }
-      ]
-    },
+    ]},
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
+      parsing: false, // データはオブジェクト {x: time, y: value} 形式で渡す
       plugins: { legend: { position:'top' } },
       scales: {
-        x: { display: false },
+        x: getTimeAxisConfig(), // ★固定時間軸を設定★
         y: { type:'linear', display:true, position:'left', title:{display:true, text:'V / I'} },
         y1: { type:'linear', display:true, position:'right', title:{display:true, text:'Watts'}, grid:{drawOnChartArea:false} }
       }
@@ -286,92 +302,147 @@ function createOverviewConfig() {
   };
 }
 
-// インスタンス作成
+// Detail用設定
+function createDetailConfig(label, color, yTitle='Value') {
+  return {
+    type: 'line',
+    data: { datasets: [{ label: label, data: [], borderColor: color, backgroundColor: color, tension: 0.3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      parsing: false,
+      scales: {
+        x: getTimeAxisConfig(), // ★固定時間軸を設定★
+        y: { title: { display: true, text: yTitle } }
+      }
+    }
+  };
+}
+
+
+// チャートインスタンス作成
 const chartPanelAll = new Chart(document.getElementById('chart-panel-all'), createOverviewConfig());
 const chartBattAll  = new Chart(document.getElementById('chart-batt-all'), createOverviewConfig());
 const chartLoadAll  = new Chart(document.getElementById('chart-load-all'), createOverviewConfig());
 
-const chartPanelV = new Chart(document.getElementById('chart-panel-v'), createConfig('Voltage', 'red', 'Volts'));
-const chartPanelI = new Chart(document.getElementById('chart-panel-i'), createConfig('Current', 'blue', 'Amps'));
+const chartPanelV = new Chart(document.getElementById('chart-panel-v'), createDetailConfig('Voltage', 'red', 'Volts'));
+const chartPanelI = new Chart(document.getElementById('chart-panel-i'), createDetailConfig('Current', 'blue', 'Amps'));
 
-const chartBattV = new Chart(document.getElementById('chart-batt-v'), createConfig('Voltage', 'orange', 'Volts'));
-const chartBattI = new Chart(document.getElementById('chart-batt-i'), createConfig('Current', 'cyan', 'Amps'));
+const chartBattV = new Chart(document.getElementById('chart-batt-v'), createDetailConfig('Voltage', 'orange', 'Volts'));
+const chartBattI = new Chart(document.getElementById('chart-batt-i'), createDetailConfig('Current', 'cyan', 'Amps'));
 
-const chartLoadV = new Chart(document.getElementById('chart-load-v'), createConfig('Voltage', 'purple', 'Volts'));
-const chartLoadI = new Chart(document.getElementById('chart-load-i'), createConfig('Current', 'magenta', 'Amps'));
+const chartLoadV = new Chart(document.getElementById('chart-load-v'), createDetailConfig('Voltage', 'purple', 'Volts'));
+const chartLoadI = new Chart(document.getElementById('chart-load-i'), createDetailConfig('Current', 'magenta', 'Amps'));
 
-function pushDataToChart(chart, label, ...values) {
-  chart.data.labels.push(label);
-  values.forEach((v, i) => {
-    if(chart.data.datasets[i]) chart.data.datasets[i].data.push(v);
-  });
-  if (chart.data.labels.length > MAX_GRAPH_POINTS) {
-    chart.data.labels.shift();
-    chart.data.datasets.forEach(d => d.data.shift());
-  }
-  chart.update();
+
+/**
+ * グラフをクリアし、新しい日の設定を適用する
+ */
+function resetCharts() {
+    [chartPanelAll, chartBattAll, chartLoadAll, chartPanelV, chartPanelI, chartBattV, chartBattI, chartLoadV, chartLoadI].forEach(chart => {
+        chart.data.datasets.forEach(d => d.data = []); // データクリア
+        chart.options.scales.x = getTimeAxisConfig(); // 新しい日の設定を適用
+        chart.update();
+    });
+    console.log(`Charts reset for new day: ${format(currentDay, 'yyyy-MM-dd')}`);
 }
 
+/**
+ * グラフにデータポイントを追加する（X軸は時刻）
+ * @param {Chart} chart - Chart.jsインスタンス
+ * @param {number} timestampMs - 時刻 (ミリ秒)
+ * @param {...number} values - V, I, Pなどの値
+ */
+function pushDataToChart(chart, timestampMs, ...values) {
+    values.forEach((v, i) => {
+        if(chart.data.datasets[i]) {
+            chart.data.datasets[i].data.push({ x: timestampMs, y: v });
+        }
+    });
+    chart.update();
+}
+
+
 // ==========================================
-// 4. マップ初期化
+// 5. マップ初期化
 // ==========================================
 const map = L.map("map").setView([35.0, 135.0], 13);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OSM" }).addTo(map);
 let marker = null;
 
 // ==========================================
-// 5. データ受信 & テーブル処理
+// 6. データ受信 & 処理
 // ==========================================
 onValue(ref(db, "latest"), (snap) => {
   const raw = snap.val();
-  if (!raw) return;
+  if (!raw || !raw.timestamp) return;
 
-  // --- データの入れ替え (Batteryデータ -> Panel UIへ) ---
+  // --- データの入れ替え ---
   const data = {
     panel:   raw.battery || {}, 
     battery: raw.panel   || {}, 
     load:    raw.load    || {},
     GPS:     raw.GPS     || {},
-    timestamp: raw.timestamp
+    // Firebaseから得られるtimestampは秒単位と仮定し、ミリ秒に変換
+    timestamp: raw.timestamp * 1000 
   };
+  
+  // JSTでのDateオブジェクトを取得
+  const fullDateJST = new Date(data.timestamp); // ブラウザのローカル時刻で解釈されるため、実質JSTとして扱える
+  const timeMs = fullDateJST.getTime();
+  const timeStr = format(fullDateJST, 'HH:mm:ss');
 
-  const now = new Date().toLocaleTimeString();
-  const fullDate = new Date();
+  // --- 日付のチェックとグラフのリセット ---
+  const currentDataDay = startOfDay(fullDateJST);
+  if (currentDataDay.getTime() > currentDay.getTime()) {
+      // 日付が変わった場合、現在の日の設定を更新し、グラフをリセット
+      currentDay = currentDataDay;
+      resetCharts();
+  } else if (currentDataDay.getTime() < currentDay.getTime()) {
+      // 過去日のデータが来た場合は無視するか、処理をスキップ (ここでは単にログを残す)
+      console.log("Received data from a past date. Skipping chart update.");
+      // return; // 過去データを受け取らない場合はコメント解除
+  }
 
+
+  // 値の取得
   const pv = data.panel.voltage ?? 0, pi = data.panel.current ?? 0, pp = data.panel.power ?? 0;
   const bv = data.battery.voltage ?? 0, bi = data.battery.current ?? 0, bp = data.battery.power ?? 0;
   const lv = data.load.voltage ?? 0, li = data.load.current ?? 0, lp = data.load.power ?? 0;
 
-  // グラフ更新
-  pushDataToChart(chartPanelAll, now, pv, pi, pp);
-  pushDataToChart(chartBattAll,  now, bv, bi, bp);
-  pushDataToChart(chartLoadAll,  now, lv, li, lp);
+  // グラフ更新 (X軸にタイムスタンプを渡す)
+  pushDataToChart(chartPanelAll, timeMs, pv, pi, pp);
+  pushDataToChart(chartBattAll,  timeMs, bv, bi, bp);
+  pushDataToChart(chartLoadAll,  timeMs, lv, li, lp);
 
-  pushDataToChart(chartPanelV, now, pv);
-  pushDataToChart(chartPanelI, now, pi);
-  pushDataToChart(chartBattV,  now, bv);
-  pushDataToChart(chartBattI,  now, bi);
-  pushDataToChart(chartLoadV,  now, lv);
-  pushDataToChart(chartLoadI,  now, li);
+  pushDataToChart(chartPanelV, timeMs, pv);
+  pushDataToChart(chartPanelI, timeMs, pi);
+  pushDataToChart(chartBattV,  timeMs, bv);
+  pushDataToChart(chartBattI,  timeMs, bi);
+  pushDataToChart(chartLoadV,  timeMs, lv);
+  pushDataToChart(chartLoadI,  timeMs, li);
 
   // マップ更新
   if (data.GPS.lat && data.GPS.lng) {
     const pos = [data.GPS.lat, data.GPS.lng];
+    const popupContent = `Power: ${pp}W<br>Time: ${timeStr} JST`; // JST表示
     if (!marker) {
       marker = L.marker(pos).addTo(map);
-      marker.bindPopup(`Power: ${pp}W`).openPopup();
+      marker.bindPopup(popupContent).openPopup();
     } else {
-      marker.setLatLng(pos).setPopupContent(`Power: ${pp}W`);
+      marker.setLatLng(pos).setPopupContent(popupContent);
     }
     map.panTo(pos);
   }
 
   // ログ保存
-  allDataLog.unshift({ dateObj: fullDate, timeStr: now, pv, pi, pp, bv, bi, bp, lv, li, lp });
+  allDataLog.unshift({ dateObj: fullDateJST, timeStr: timeStr, pv, pi, pp, bv, bi, bp, lv, li, lp });
   renderTable();
 });
 
-// テーブル用イベント
+// ==========================================
+// 7. テーブル処理
+// ==========================================
+// (前回のコードから変更なし)
 const btnHourly = document.getElementById('btn-toggle-hourly');
 btnHourly.addEventListener('click', () => {
   isHourlyMode = !isHourlyMode;
@@ -387,7 +458,9 @@ function renderTable() {
   tbody.innerHTML = '';
 
   const selectedDateStr = document.getElementById('date-picker').value;
-  const filtered = allDataLog.filter(d => d.dateObj.toISOString().slice(0, 10) === selectedDateStr);
+  
+  // ログのdateObjはブラウザのローカルタイムゾーン（JST）で作成されているため、そのまま比較可能
+  const filtered = allDataLog.filter(d => format(d.dateObj, 'yyyy-MM-dd') === selectedDateStr);
 
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10">データなし (受信待ち)</td></tr>';
