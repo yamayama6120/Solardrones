@@ -1,163 +1,161 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>Drone Dashboard</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: 'Arial', sans-serif; margin: 0; background: #f4f6f8; }
-    header { display: flex; justify-content: center; gap: 15px; background: #1e1e2f; padding: 10px 0; }
-    header button { background: #3b3b5f; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; transition: 0.3s; }
-    header button:hover { background: #5c5c8f; }
-    header button.active { background: #ff6f61; }
+<meta charset="UTF-8">
+<title>Drone Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: 'Arial', sans-serif; margin:0; background:#f4f6f8; }
+header { display:flex; justify-content:center; gap:15px; background:#1e1e2f; padding:10px 0; }
+header button { background:#3b3b5f; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-size:16px; transition:0.3s; }
+header button:hover { background:#5c5c8f; }
+header button.active { background:#ff6f61; }
 
-    .section { display: none; padding: 20px; }
-    .section.active { display: block; }
+.section { display:none; padding:20px; }
+.section.active { display:block; }
 
-    #graph-section .card { margin: 15px auto; background: white; border-radius: 12px; padding: 15px; width: 80%; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-    #graph-section canvas { width: 100% !important; height: 300px !important; }
+#graph-section .card { margin:15px auto; background:white; border-radius:12px; padding:15px; width:80%; max-width:600px; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+#graph-section canvas { width:100% !important; height:100% !important; aspect-ratio:1/1; }
 
-    #map-section { height: 600px; border-radius: 12px; margin: 0 auto; width: 80%; }
-    
-    #table-section { width: 80%; margin: 0 auto; }
-    #table-section select { padding: 6px 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #ccc; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    th, td { padding: 8px; text-align: center; border-bottom: 1px solid #ddd; }
-    th { background: #3b3b5f; color: white; }
-    tr:nth-child(even) { background: #f9f9f9; }
-  </style>
+#map-section { height:600px; border-radius:12px; margin:0 auto; width:80%; max-width:600px; }
+
+#table-section { width:80%; max-width:800px; margin:0 auto; }
+#table-section input { padding:6px 10px; margin-bottom:10px; border-radius:6px; border:1px solid #ccc; }
+table { width:100%; border-collapse:collapse; background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+th, td { padding:8px; text-align:center; border-bottom:1px solid #ddd; }
+th { background:#3b3b5f; color:white; }
+tr:nth-child(even) { background:#f9f9f9; }
+</style>
 </head>
 <body>
-  <header>
-    <button id="btn-graphs" class="active">グラフ表示</button>
-    <button id="btn-map">GPSマップ表示</button>
-    <button id="btn-table">過去データ表示</button>
-  </header>
+<header>
+  <button id="btn-graphs" class="active">グラフ表示</button>
+  <button id="btn-map">GPSマップ表示</button>
+  <button id="btn-table">過去データ表示</button>
+</header>
 
-  <div id="graph-section" class="section active">
-    <div class="card"><h3>Panel</h3><canvas id="chart-panel"></canvas></div>
-    <div class="card"><h3>Battery</h3><canvas id="chart-batt"></canvas></div>
-    <div class="card"><h3>Load</h3><canvas id="chart-load"></canvas></div>
-  </div>
+<div id="graph-section" class="section active">
+  <div class="card"><h3>Panel</h3><canvas id="chart-panel"></canvas></div>
+  <div class="card"><h3>Battery</h3><canvas id="chart-batt"></canvas></div>
+  <div class="card"><h3>Load</h3><canvas id="chart-load"></canvas></div>
+</div>
 
-  <div id="map-section" class="section">
-    <div id="map"></div>
-  </div>
+<div id="map-section" class="section">
+  <div id="map"></div>
+</div>
 
-  <div id="table-section" class="section">
-    <label for="date-select">日付を選択:</label>
-    <input type="date" id="date-select">
-    <table id="data-table">
-      <thead>
-        <tr><th>時刻</th><th>Panel V</th><th>Panel I</th><th>Panel P</th>
-            <th>Battery V</th><th>Battery I</th><th>Battery P</th>
-            <th>Load V</th><th>Load I</th><th>Load P</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+<div id="table-section" class="section">
+  <label for="date-select">日付を選択:</label>
+  <input type="date" id="date-select">
+  <table id="data-table">
+    <thead>
+      <tr><th>時刻</th><th>Panel V</th><th>Panel I</th><th>Panel P</th>
+          <th>Battery V</th><th>Battery I</th><th>Battery P</th>
+          <th>Load V</th><th>Load I</th><th>Load P</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getDatabase, ref, onValue, get, child } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
-      authDomain: "dronesgps-f3616.firebaseapp.com",
-      databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "dronesgps-f3616",
-      storageBucket: "dronesgps-f3616.firebasestorage.app",
-      messagingSenderId: "1068524436957",
-      appId: "1:1068524436957:web:dbd9ec480ced3065314a34",
-      measurementId: "G-STNDL06MJT"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+const firebaseConfig = {
+  apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
+  authDomain: "dronesgps-f3616.firebaseapp.com",
+  databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "dronesgps-f3616",
+  storageBucket: "dronesgps-f3616.firebasestorage.app",
+  messagingSenderId: "1068524436957",
+  appId: "1:1068524436957:web:dbd9ec480ced3065314a34",
+  measurementId: "G-STNDL06MJT"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-    // ===== ボタン切替処理 =====
-    const sections = { graphs: document.getElementById('graph-section'), map: document.getElementById('map-section'), table: document.getElementById('table-section') };
-    const buttons = { graphs: document.getElementById('btn-graphs'), map: document.getElementById('btn-map'), table: document.getElementById('btn-table') };
+// ===== ボタン切替処理 =====
+const sections = { graphs: document.getElementById('graph-section'), map: document.getElementById('map-section'), table: document.getElementById('table-section') };
+const buttons = { graphs: document.getElementById('btn-graphs'), map: document.getElementById('btn-map'), table: document.getElementById('btn-table') };
+function showSection(name){
+  Object.values(sections).forEach(s => s.classList.remove('active'));
+  sections[name].classList.add('active');
+  Object.values(buttons).forEach(b => b.classList.remove('active'));
+  buttons[name].classList.add('active');
+  if(name==='map'){ setTimeout(()=>map.invalidateSize(),300); } // マップ再描画
+}
+buttons.graphs.onclick = ()=>showSection('graphs');
+buttons.map.onclick = ()=>showSection('map');
+buttons.table.onclick = ()=>showSection('table');
 
-    function showSection(name){
-      Object.values(sections).forEach(s => s.classList.remove('active'));
-      sections[name].classList.add('active');
-      Object.values(buttons).forEach(b => b.classList.remove('active'));
-      buttons[name].classList.add('active');
-    }
+// ===== Chart.js 初期化 =====
+const MAX_POINTS = 50;
+const createChart = (ctx) => new Chart(ctx,{
+  type:'line',
+  data:{ labels:[], datasets:[
+    { label:'V', data:[], borderColor:'red', fill:false },
+    { label:'I', data:[], borderColor:'blue', fill:false },
+    { label:'P', data:[], borderColor:'green', fill:false }
+  ]},
+  options:{ responsive:false, animation:false, plugins:{ legend:{ position:'bottom' } }, scales:{ x:{ display:false } } }
+});
+const panelChart = createChart(document.getElementById('chart-panel'));
+const battChart = createChart(document.getElementById('chart-batt'));
+const loadChart = createChart(document.getElementById('chart-load'));
 
-    buttons.graphs.onclick = () => showSection('graphs');
-    buttons.map.onclick = () => showSection('map');
-    buttons.table.onclick = () => showSection('table');
+// ===== Leaflet Map 初期化 =====
+const map = L.map("map").setView([35.0,135.0],13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{ attribution:"&copy; OpenStreetMap contributors" }).addTo(map);
+let marker = null;
 
-    // ===== Chart.js 初期化 =====
-    const MAX_POINTS = 50;
-    const createChart = (ctx) => new Chart(ctx, {
-      type: 'line',
-      data: { labels: [], datasets: [
-        { label:'V', data:[], borderColor:'red', fill:false },
-        { label:'I', data:[], borderColor:'blue', fill:false },
-        { label:'P', data:[], borderColor:'green', fill:false }
-      ] },
-      options:{ responsive:false, animation:false, plugins:{ legend:{ position:'bottom' } }, scales:{ x:{ display:false } } }
+// ===== データ更新関数 =====
+function pushData(chart,time,v,i,p){
+  chart.data.labels.push(time); chart.data.datasets[0].data.push(v);
+  chart.data.datasets[1].data.push(i); chart.data.datasets[2].data.push(p);
+  if(chart.data.labels.length>MAX_POINTS){
+    chart.data.labels.shift(); chart.data.datasets.forEach(d=>d.data.shift());
+  }
+  chart.update();
+}
+
+// ===== 最新データリスナー =====
+const latestRef = ref(db,'latest');
+onValue(latestRef, snap=>{
+  const v = snap.val(); if(!v) return;
+  const now = new Date().toLocaleTimeString();
+  pushData(panelChart, now, v.panel?.voltage??0, v.panel?.current??0, v.panel?.power??0);
+  pushData(battChart, now, v.battery?.voltage??0, v.battery?.current??0, v.battery?.power??0);
+  pushData(loadChart, now, v.load?.voltage??0, v.load?.current??0, v.load?.power??0);
+  if(v.GPS?.lat && v.GPS?.lng){
+    if(!marker){ marker=L.marker([v.GPS.lat,v.GPS.lng]).addTo(map); marker.bindPopup(`Panel P: ${v.panel?.power??0} W`); }
+    else { marker.setLatLng([v.GPS.lat,v.GPS.lng]); marker.setPopupContent(`Panel P: ${v.panel?.power??0} W`);}
+    map.setView([v.GPS.lat,v.GPS.lng],15);
+  }
+});
+
+// ===== 過去データ表示 =====
+const tableBody = document.querySelector('#data-table tbody');
+document.getElementById('date-select').addEventListener('change', async e=>{
+  const dateStr = e.target.value; // yyyy-mm-dd
+  if(!dateStr) return;
+  const dateRef = ref(db, `historical/${dateStr}`);
+  const snap = await get(dateRef);
+  const data = snap.val();
+  tableBody.innerHTML='';
+  if(!data) return;
+  // Firebaseはキー順でソート
+  Object.keys(data).sort().forEach(k=>{
+    const d = data[k];
+    const row = document.createElement('tr');
+    ['timestamp','panel','battery','load'].forEach(key=>{
+      if(key==='timestamp'){ row.innerHTML+=`<td>${d.timestamp??''}</td>`;}
+      else { row.innerHTML+=`<td>${d[key]?.voltage??''}</td><td>${d[key]?.current??''}</td><td>${d[key]?.power??''}</td>`;}
     });
-
-    const panelChart = createChart(document.getElementById('chart-panel'));
-    const battChart = createChart(document.getElementById('chart-batt'));
-    const loadChart = createChart(document.getElementById('chart-load'));
-
-    // ===== Leaflet Map 初期化 =====
-    const map = L.map("map").setView([35.0,135.0],13);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"&copy; OpenStreetMap contributors" }).addTo(map);
-    let marker = null;
-
-    // ===== データ更新関数 =====
-    function pushData(chart, time, v,i,p){
-      chart.data.labels.push(time); chart.data.datasets[0].data.push(v);
-      chart.data.datasets[1].data.push(i); chart.data.datasets[2].data.push(p);
-      if(chart.data.labels.length>MAX_POINTS){
-        chart.data.labels.shift(); chart.data.datasets.forEach(d=>d.data.shift());
-      }
-      chart.update();
-    }
-
-    // ===== 最新データリスナー =====
-    const latestRef = ref(db, 'latest');
-    onValue(latestRef, snap=>{
-      const v = snap.val();
-      if(!v) return;
-      const now = new Date().toLocaleTimeString();
-      pushData(panelChart, now, v.panel?.voltage??0, v.panel?.current??0, v.panel?.power??0);
-      pushData(battChart, now, v.battery?.voltage??0, v.battery?.current??0, v.battery?.power??0);
-      pushData(loadChart, now, v.load?.voltage??0, v.load?.current??0, v.load?.power??0);
-
-      if(v.GPS?.lat && v.GPS?.lng){
-        if(!marker){ marker=L.marker([v.GPS.lat,v.GPS.lng]).addTo(map); marker.bindPopup(`Panel P: ${v.panel?.power??0} W`); }
-        else { marker.setLatLng([v.GPS.lat,v.GPS.lng]); marker.setPopupContent(`Panel P: ${v.panel?.power??0} W`);}
-        map.setView([v.GPS.lat,v.GPS.lng],15);
-      }
-    });
-
-    // ===== 過去データ表示 =====
-    const tableBody = document.querySelector('#data-table tbody');
-    document.getElementById('date-select').addEventListener('change', async e=>{
-      const dateStr = e.target.value; // yyyy-mm-dd
-      if(!dateStr) return;
-      const dateRef = ref(db, `historical/${dateStr}`);
-      const snap = await get(dateRef);
-      const data = snap.val();
-      tableBody.innerHTML='';
-      if(!data) return;
-      Object.values(data).forEach(d=>{
-        const row = document.createElement('tr');
-        ['timestamp','panel','battery','load'].forEach(key=>{
-          if(key==='timestamp'){ row.innerHTML+=`<td>${d.timestamp??''}</td>`;}
-          else { row.innerHTML+=`<td>${d[key]?.voltage??''}</td><td>${d[key]?.current??''}</td><td>${d[key]?.power??''}</td>`;}
-        });
-        tableBody.appendChild(row);
-      });
-    });
-  </script>
+    tableBody.appendChild(row);
+  });
+});
+</script>
 </body>
 </html>
