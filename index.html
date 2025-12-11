@@ -15,10 +15,10 @@ header button.active { background:#ff6f61; }
 .section { display:none; padding:20px; }
 .section.active { display:block; }
 
-#graph-section .card { margin:15px auto; background:white; border-radius:12px; padding:15px; width:80%; max-width:600px; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
-#graph-section canvas { width:100% !important; height:100% !important; aspect-ratio:1/1; }
+#graph-section .card { margin:15px auto; background:white; border-radius:12px; padding:15px; width:90%; max-width:700px; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+#graph-section canvas { width:100% !important; height:300px !important; }
 
-#map-section { height:600px; border-radius:12px; margin:0 auto; width:80%; max-width:600px; }
+#map-section { height:600px; border-radius:12px; margin:0 auto; width:90%; max-width:700px; }
 
 #table-section { width:90%; max-width:900px; margin:0 auto; }
 #table-section input { padding:6px 10px; margin-bottom:10px; border-radius:6px; border:1px solid #ccc; }
@@ -66,6 +66,7 @@ tr:nth-child(even) { background:#f9f9f9; }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
+// Firebase初期化
 const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
   authDomain: "dronesgps-f3616.firebaseapp.com",
@@ -102,7 +103,7 @@ const createChart = (ctx) => new Chart(ctx,{
     { label:'I', data:[], borderColor:'blue', fill:false },
     { label:'P', data:[], borderColor:'green', fill:false }
   ]},
-  options:{ responsive:false, animation:false, plugins:{ legend:{ position:'bottom' } }, scales:{ x:{ display:false } } }
+  options:{ responsive:true, maintainAspectRatio:false, animation:false, plugins:{ legend:{ position:'bottom' } } }
 });
 const panelChart = createChart(document.getElementById('chart-panel'));
 const battChart = createChart(document.getElementById('chart-batt'));
@@ -113,7 +114,7 @@ const map = L.map("map").setView([35.0,135.0],13);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{ attribution:"&copy; OpenStreetMap contributors" }).addTo(map);
 let marker = null;
 
-// ===== データ更新 =====
+// ===== データ更新関数 =====
 function pushData(chart,time,v,i,p){
   chart.data.labels.push(time); chart.data.datasets[0].data.push(v);
   chart.data.datasets[1].data.push(i); chart.data.datasets[2].data.push(p);
@@ -124,53 +125,68 @@ function pushData(chart,time,v,i,p){
 }
 
 // ===== 最新データリスナー =====
-const latestRef = ref(db,'latest');
+const latestRef = ref(db,'latest/sensor');
 onValue(latestRef, snap=>{
-  const v = snap.val();
-  if(!v) return;
-  const now = new Date().toLocaleTimeString();
+  const sensors = snap.val();
+  if(!sensors) return;
+  const keys = Object.keys(sensors).sort();
+  const last = sensors[keys[keys.length-1]];
+
+  const time = new Date().toLocaleTimeString();
 
   // グラフ更新
-  const sensor = v.sensor || {};
-  pushData(panelChart, now, sensor.panel?.voltage??0, sensor.panel?.current??0, sensor.panel?.power??0);
-  pushData(battChart, now, sensor.battery?.voltage??0, sensor.battery?.current??0, sensor.battery?.power??0);
-  pushData(loadChart, now, sensor.load?.voltage??0, sensor.load?.current??0, sensor.load?.power??0);
+  pushData(panelChart,time,last.panel?.voltage??0,last.panel?.current??0,last.panel?.power??0);
+  pushData(battChart,time,last.battery?.voltage??0,last.battery?.current??0,last.battery?.power??0);
+  pushData(loadChart,time,last.load?.voltage??0,last.load?.current??0,last.load?.power??0);
 
   // マップ更新
-  if(v.GPS?.lat && v.GPS?.lng){
+  if(last.GPS?.lat && last.GPS?.lng){
     if(!marker){ 
-      marker=L.marker([v.GPS.lat,v.GPS.lng]).addTo(map); 
-      marker.bindPopup(`Panel P: ${sensor.panel?.power??0} W`);
+      marker=L.marker([last.GPS.lat,last.GPS.lng]).addTo(map); 
+      marker.bindPopup(`Panel P: ${last.panel?.power??0} W`);
     } else { 
-      marker.setLatLng([v.GPS.lat,v.GPS.lng]); 
-      marker.setPopupContent(`Panel P: ${sensor.panel?.power??0} W`);
+      marker.setLatLng([last.GPS.lat,last.GPS.lng]); 
+      marker.setPopupContent(`Panel P: ${last.panel?.power??0} W`);
     }
-    map.setView([v.GPS.lat,v.GPS.lng],15);
+    map.setView([last.GPS.lat,last.GPS.lng],15);
   }
 });
 
 // ===== 過去データ表示 =====
 const tableBody = document.querySelector('#data-table tbody');
 document.getElementById('date-select').addEventListener('change', e=>{
-  const dateStr = e.target.value.replace(/-/g,'');
+  const dateStr = e.target.value.replace(/-/g,''); // YYYYMMDD形式など
   tableBody.innerHTML='';
-  const latestSnap = latestRef; // 最新データ内の sensor 配列を参照
-  onValue(latestSnap, snap=>{
-    const data = snap.val()?.sensor || {};
-    if(!data){ 
+  onValue(latestRef, snap=>{
+    const sensors = snap.val();
+    if(!sensors){
       const row = document.createElement('tr');
       row.innerHTML=`<td colspan="10">データなし</td>`;
       tableBody.appendChild(row);
       return;
     }
-    Object.values(data).forEach(d=>{
+    const sortedKeys = Object.keys(sensors).sort();
+    let hasData = false;
+    sortedKeys.forEach(k=>{
+      const d = sensors[k];
+      const tsDate = new Date(d.timestamp*1000);
+      const yyyyMMdd = tsDate.toISOString().slice(0,10).replace(/-/g,'');
+      if(yyyyMMdd!==dateStr) return;
+      hasData=true;
       const row = document.createElement('tr');
-      ['timestamp','panel','battery','load'].forEach(key=>{
-        if(key==='timestamp'){ row.innerHTML+=`<td>${d.timestamp??''}</td>`;}
-        else { row.innerHTML+=`<td>${d[key]?.voltage??''}</td><td>${d[key]?.current??''}</td><td>${d[key]?.power??''}</td>`;}
-      });
+      row.innerHTML=`
+        <td>${tsDate.toLocaleTimeString()}</td>
+        <td>${d.panel?.voltage??''}</td><td>${d.panel?.current??''}</td><td>${d.panel?.power??''}</td>
+        <td>${d.battery?.voltage??''}</td><td>${d.battery?.current??''}</td><td>${d.battery?.power??''}</td>
+        <td>${d.load?.voltage??''}</td><td>${d.load?.current??''}</td><td>${d.load?.power??''}</td>
+      `;
       tableBody.appendChild(row);
     });
+    if(!hasData){
+      const row = document.createElement('tr');
+      row.innerHTML=`<td colspan="10">データなし</td>`;
+      tableBody.appendChild(row);
+    }
   });
 });
 </script>
