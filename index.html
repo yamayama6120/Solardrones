@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body { font-family: 'Arial', sans-serif; margin:0; background:#f4f6f8; }
+body { font-family:'Arial',sans-serif; margin:0; background:#f4f6f8; }
 header { display:flex; justify-content:center; gap:15px; background:#1e1e2f; padding:10px 0; }
 header button { background:#3b3b5f; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-size:16px; transition:0.3s; }
 header button:hover { background:#5c5c8f; }
@@ -20,7 +20,7 @@ header button.active { background:#ff6f61; }
 
 #map-section { height:600px; border-radius:12px; margin:0 auto; width:80%; max-width:600px; }
 
-#table-section { width:80%; max-width:800px; margin:0 auto; }
+#table-section { width:90%; max-width:900px; margin:0 auto; }
 #table-section input { padding:6px 10px; margin-bottom:10px; border-radius:6px; border:1px solid #ccc; }
 table { width:100%; border-collapse:collapse; background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
 th, td { padding:8px; text-align:center; border-bottom:1px solid #ddd; }
@@ -29,6 +29,7 @@ tr:nth-child(even) { background:#f9f9f9; }
 </style>
 </head>
 <body>
+
 <header>
   <button id="btn-graphs" class="active">グラフ表示</button>
   <button id="btn-map">GPSマップ表示</button>
@@ -50,9 +51,11 @@ tr:nth-child(even) { background:#f9f9f9; }
   <input type="date" id="date-select">
   <table id="data-table">
     <thead>
-      <tr><th>時刻</th><th>Panel V</th><th>Panel I</th><th>Panel P</th>
-          <th>Battery V</th><th>Battery I</th><th>Battery P</th>
-          <th>Load V</th><th>Load I</th><th>Load P</th></tr>
+      <tr>
+        <th>時刻</th><th>Panel V</th><th>Panel I</th><th>Panel P</th>
+        <th>Battery V</th><th>Battery I</th><th>Battery P</th>
+        <th>Load V</th><th>Load I</th><th>Load P</th>
+      </tr>
     </thead>
     <tbody></tbody>
   </table>
@@ -61,7 +64,7 @@ tr:nth-child(even) { background:#f9f9f9; }
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
@@ -84,7 +87,7 @@ function showSection(name){
   sections[name].classList.add('active');
   Object.values(buttons).forEach(b => b.classList.remove('active'));
   buttons[name].classList.add('active');
-  if(name==='map'){ setTimeout(()=>map.invalidateSize(),300); } // マップ再描画
+  if(name==='map'){ setTimeout(()=>map.invalidateSize(),300); }
 }
 buttons.graphs.onclick = ()=>showSection('graphs');
 buttons.map.onclick = ()=>showSection('map');
@@ -110,7 +113,7 @@ const map = L.map("map").setView([35.0,135.0],13);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{ attribution:"&copy; OpenStreetMap contributors" }).addTo(map);
 let marker = null;
 
-// ===== データ更新関数 =====
+// ===== データ更新 =====
 function pushData(chart,time,v,i,p){
   chart.data.labels.push(time); chart.data.datasets[0].data.push(v);
   chart.data.datasets[1].data.push(i); chart.data.datasets[2].data.push(p);
@@ -123,37 +126,51 @@ function pushData(chart,time,v,i,p){
 // ===== 最新データリスナー =====
 const latestRef = ref(db,'latest');
 onValue(latestRef, snap=>{
-  const v = snap.val(); if(!v) return;
+  const v = snap.val();
+  if(!v) return;
   const now = new Date().toLocaleTimeString();
-  pushData(panelChart, now, v.panel?.voltage??0, v.panel?.current??0, v.panel?.power??0);
-  pushData(battChart, now, v.battery?.voltage??0, v.battery?.current??0, v.battery?.power??0);
-  pushData(loadChart, now, v.load?.voltage??0, v.load?.current??0, v.load?.power??0);
+
+  // グラフ更新
+  const sensor = v.sensor || {};
+  pushData(panelChart, now, sensor.panel?.voltage??0, sensor.panel?.current??0, sensor.panel?.power??0);
+  pushData(battChart, now, sensor.battery?.voltage??0, sensor.battery?.current??0, sensor.battery?.power??0);
+  pushData(loadChart, now, sensor.load?.voltage??0, sensor.load?.current??0, sensor.load?.power??0);
+
+  // マップ更新
   if(v.GPS?.lat && v.GPS?.lng){
-    if(!marker){ marker=L.marker([v.GPS.lat,v.GPS.lng]).addTo(map); marker.bindPopup(`Panel P: ${v.panel?.power??0} W`); }
-    else { marker.setLatLng([v.GPS.lat,v.GPS.lng]); marker.setPopupContent(`Panel P: ${v.panel?.power??0} W`);}
+    if(!marker){ 
+      marker=L.marker([v.GPS.lat,v.GPS.lng]).addTo(map); 
+      marker.bindPopup(`Panel P: ${sensor.panel?.power??0} W`);
+    } else { 
+      marker.setLatLng([v.GPS.lat,v.GPS.lng]); 
+      marker.setPopupContent(`Panel P: ${sensor.panel?.power??0} W`);
+    }
     map.setView([v.GPS.lat,v.GPS.lng],15);
   }
 });
 
 // ===== 過去データ表示 =====
 const tableBody = document.querySelector('#data-table tbody');
-document.getElementById('date-select').addEventListener('change', async e=>{
-  const dateStr = e.target.value; // yyyy-mm-dd
-  if(!dateStr) return;
-  const dateRef = ref(db, `historical/${dateStr}`);
-  const snap = await get(dateRef);
-  const data = snap.val();
+document.getElementById('date-select').addEventListener('change', e=>{
+  const dateStr = e.target.value.replace(/-/g,'');
   tableBody.innerHTML='';
-  if(!data) return;
-  // Firebaseはキー順でソート
-  Object.keys(data).sort().forEach(k=>{
-    const d = data[k];
-    const row = document.createElement('tr');
-    ['timestamp','panel','battery','load'].forEach(key=>{
-      if(key==='timestamp'){ row.innerHTML+=`<td>${d.timestamp??''}</td>`;}
-      else { row.innerHTML+=`<td>${d[key]?.voltage??''}</td><td>${d[key]?.current??''}</td><td>${d[key]?.power??''}</td>`;}
+  const latestSnap = latestRef; // 最新データ内の sensor 配列を参照
+  onValue(latestSnap, snap=>{
+    const data = snap.val()?.sensor || {};
+    if(!data){ 
+      const row = document.createElement('tr');
+      row.innerHTML=`<td colspan="10">データなし</td>`;
+      tableBody.appendChild(row);
+      return;
+    }
+    Object.values(data).forEach(d=>{
+      const row = document.createElement('tr');
+      ['timestamp','panel','battery','load'].forEach(key=>{
+        if(key==='timestamp'){ row.innerHTML+=`<td>${d.timestamp??''}</td>`;}
+        else { row.innerHTML+=`<td>${d[key]?.voltage??''}</td><td>${d[key]?.current??''}</td><td>${d[key]?.power??''}</td>`;}
+      });
+      tableBody.appendChild(row);
     });
-    tableBody.appendChild(row);
   });
 });
 </script>
