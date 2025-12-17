@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Drone Dashboard Ultimate V3</title>
+<title>Drone Dashboard Ultimate V4</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -25,6 +25,9 @@
   .control-group { display: flex; align-items: center; gap: 10px; border-right: 1px solid #eee; padding-right: 15px; }
   .control-group:last-child { border-right: none; }
   
+  /* モード表示のスタイル修正（黒文字・シンプル） */
+  #mode-indicator { color: #333; font-weight: bold; margin-left: 5px; }
+
   .btn-action { background: #3b3b5f; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
   .btn-action:hover { background: #5c5c8f; }
   .btn-reset { background: #ff6f61; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
@@ -72,8 +75,8 @@
   
   <div class="graph-controls">
     <div class="control-group">
-      <span><b>グラフ表示モード:</b></span>
-      <span id="mode-indicator" style="color: #ff6f61; font-weight: bold;">リアルタイム (0:00 - 24:00)</span>
+      <span>グラフ表示モード:</span>
+      <span id="mode-indicator">リアル</span>
     </div>
     <div class="control-group">
       <label>開始:</label> <input type="time" id="graph-start-time" value="00:00">
@@ -186,25 +189,33 @@ const db = getDatabase(app);
 // ==========================================
 // 1. グローバル変数
 // ==========================================
-let allDataLog = [];      // 全データ履歴保持
-let lastGraphDate = null; // グラフのリセット判定用
+let allDataLog = [];      
+let lastGraphDate = null; 
 let graphUpdateCounter = 0; 
-let isFilterMode = false; // true=期間指定モード, false=リアルタイムモード
+let isFilterMode = false;
 
-// 日付ピッカー初期値
 const today = new Date();
 document.getElementById('date-picker').valueAsDate = today;
 
 // ==========================================
-// 2. UI切り替え
+// 2. UI切り替え & バグ修正ロジック
 // ==========================================
 window.showSection = (name) => {
   document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.main-nav').forEach(el => el.classList.remove('active'));
   document.getElementById(`${name}-section`).classList.add('active');
   document.getElementById(`btn-${name}`).classList.add('active');
+
+  // ★重要修正: マップ表示からグラフに戻った時にグラフサイズを再計算させる
+  if (name === 'graphs') {
+    setTimeout(() => {
+      charts.forEach(c => c.resize());
+    }, 100);
+  }
+  
   if (name === 'map') setTimeout(() => map.invalidateSize(), 200);
 };
+
 document.getElementById('btn-graphs').onclick = () => showSection('graphs');
 document.getElementById('btn-map').onclick = () => showSection('map');
 document.getElementById('btn-table').onclick = () => showSection('table');
@@ -274,12 +285,9 @@ const chartLoadI = new Chart(document.getElementById('chart-load-i'), createConf
 
 
 // --- グラフ更新ロジック ---
-
-// 1. データ1点を追加 (リアルタイムモード用)
 function pushToCharts(label, pv, pi, pp, bv, bi, bp, lv, li, lp) {
-  if (isFilterMode) return; // 期間指定モード中はリアルタイム更新しない
+  if (isFilterMode) return; 
 
-  // Overview
   chartPanelAll.data.labels.push(label);
   chartPanelAll.data.datasets[0].data.push(pv); chartPanelAll.data.datasets[1].data.push(pi); chartPanelAll.data.datasets[2].data.push(pp);
   
@@ -289,7 +297,6 @@ function pushToCharts(label, pv, pi, pp, bv, bi, bp, lv, li, lp) {
   chartLoadAll.data.labels.push(label);
   chartLoadAll.data.datasets[0].data.push(lv); chartLoadAll.data.datasets[1].data.push(li); chartLoadAll.data.datasets[2].data.push(lp);
 
-  // Details
   [chartPanelV, chartPanelI, chartBattV, chartBattI, chartLoadV, chartLoadI].forEach(c => c.data.labels.push(label));
   chartPanelV.data.datasets[0].data.push(pv);
   chartPanelI.data.datasets[0].data.push(pi);
@@ -301,19 +308,15 @@ function pushToCharts(label, pv, pi, pp, bv, bi, bp, lv, li, lp) {
   charts.forEach(c => c.update());
 }
 
-// 2. まとめて描画 (履歴再描画や期間指定用)
 function renderBatchCharts(dataArray) {
-  // まずクリア
   charts.forEach(c => {
     c.data.labels = [];
     c.data.datasets.forEach(ds => ds.data = []);
   });
 
-  // データを流し込み (新しい順で入ってるので反転させる)
   const sorted = [...dataArray].reverse();
 
   sorted.forEach(d => {
-    // Overview
     chartPanelAll.data.labels.push(d.timeStr);
     chartPanelAll.data.datasets[0].data.push(d.pv); chartPanelAll.data.datasets[1].data.push(d.pi); chartPanelAll.data.datasets[2].data.push(d.pp);
 
@@ -323,7 +326,6 @@ function renderBatchCharts(dataArray) {
     chartLoadAll.data.labels.push(d.timeStr);
     chartLoadAll.data.datasets[0].data.push(d.lv); chartLoadAll.data.datasets[1].data.push(d.li); chartLoadAll.data.datasets[2].data.push(d.lp);
 
-    // Details
     [chartPanelV, chartPanelI, chartBattV, chartBattI, chartLoadV, chartLoadI].forEach(c => c.data.labels.push(d.timeStr));
     chartPanelV.data.datasets[0].data.push(d.pv);
     chartPanelI.data.datasets[0].data.push(d.pi);
@@ -338,21 +340,19 @@ function renderBatchCharts(dataArray) {
 
 // --- グラフモード制御 ---
 window.applyGraphFilter = () => {
-  const start = document.getElementById('graph-start-time').value; // "HH:MM"
-  const end = document.getElementById('graph-end-time').value;     // "HH:MM"
+  const start = document.getElementById('graph-start-time').value; 
+  const end = document.getElementById('graph-end-time').value;     
   
   if (!start || !end) return;
   
   isFilterMode = true;
-  document.getElementById('mode-indicator').innerText = `期間指定モード (${start} - ${end})`;
-  document.getElementById('mode-indicator').style.color = "#007bff";
+  document.getElementById('mode-indicator').innerText = "指定"; // シンプル表示
 
-  // 当日のデータからフィルタリング
   const currentDayStr = new Date().toLocaleDateString('ja-JP');
   const filtered = allDataLog.filter(d => {
     if (d.dateStr !== currentDayStr) return false;
-    const t = d.timeStr; // "HH:MM:SS"
-    return t >= start && t <= end + ":59"; // 秒まで考慮
+    const t = d.timeStr; 
+    return t >= start && t <= end + ":59"; 
   });
 
   renderBatchCharts(filtered);
@@ -360,10 +360,8 @@ window.applyGraphFilter = () => {
 
 window.resetGraphToRealtime = () => {
   isFilterMode = false;
-  document.getElementById('mode-indicator').innerText = "リアルタイム (0:00 - 24:00)";
-  document.getElementById('mode-indicator').style.color = "#ff6f61";
+  document.getElementById('mode-indicator').innerText = "リアル"; // シンプル表示
   
-  // 今日の全データを再描画
   const currentDayStr = new Date().toLocaleDateString('ja-JP');
   const todaysData = allDataLog.filter(d => d.dateStr === currentDayStr);
   renderBatchCharts(todaysData);
@@ -384,7 +382,6 @@ onValue(ref(db, "latest"), (snap) => {
   const raw = snap.val();
   if (!raw) return;
 
-  // データスワップ (Panel <-> Batt)
   const data = {
     panel:   raw.battery || {},  
     battery: raw.panel   || {},  
@@ -394,10 +391,9 @@ onValue(ref(db, "latest"), (snap) => {
   };
 
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('ja-JP', { hour12: false }); // HH:MM:SS
-  const dateStr = now.toLocaleDateString('ja-JP'); // YYYY/MM/DD
+  const timeStr = now.toLocaleTimeString('ja-JP', { hour12: false });
+  const dateStr = now.toLocaleDateString('ja-JP');
 
-  // 数値取得
   const pv = parseFloat(data.panel.voltage || 0);
   const pi = parseFloat(data.panel.current || 0);
   const pp = parseFloat(data.panel.power || 0);
@@ -408,26 +404,22 @@ onValue(ref(db, "latest"), (snap) => {
   const li = parseFloat(data.load.current || 0);
   const lp = parseFloat(data.load.power || 0);
   
-  // GPS & 高度
   const lat = parseFloat(data.GPS.lat || 0);
   const lng = parseFloat(data.GPS.lng || 0);
-  const alt = parseFloat(data.GPS.alt || 0); // 高度
+  const alt = parseFloat(data.GPS.alt || 0);
 
-  // 1. 日付変更リセット
   if (lastGraphDate !== dateStr) {
-    if (!isFilterMode) { // フィルタモードでなければリセット
+    if (!isFilterMode) { 
       charts.forEach(c => { c.data.labels = []; c.data.datasets.forEach(ds => ds.data = []); c.update(); });
     }
     lastGraphDate = dateStr;
   }
 
-  // 2. グラフ更新 (間引き: 5回に1回)
   graphUpdateCounter++;
   if (graphUpdateCounter % 5 === 0) { 
     pushToCharts(timeStr, pv, pi, pp, bv, bi, bp, lv, li, lp);
   }
 
-  // 3. マップ更新
   if (lat && lng) {
     const pos = [lat, lng];
     if (!marker) {
@@ -439,7 +431,6 @@ onValue(ref(db, "latest"), (snap) => {
     map.panTo(pos);
   }
 
-  // 4. データ履歴保存
   allDataLog.unshift({
     dateObj: now,
     dateStr: dateStr, 
@@ -456,7 +447,6 @@ onValue(ref(db, "latest"), (snap) => {
 // ==========================================
 function getFilteredData() {
   const selectedDateStr = document.getElementById('date-picker').value; 
-  // date inputは yyyy-mm-dd、toLocaleDateStringは環境依存(yyyy/mm/dd等)のためDate変換して比較
   const inputDate = new Date(selectedDateStr).toLocaleDateString('ja-JP');
   return allDataLog.filter(d => d.dateStr === inputDate);
 }
@@ -467,8 +457,8 @@ function aggregateData(data, mode) {
   const groups = {};
   data.forEach(d => {
     let key;
-    if (mode === '1min') key = d.timeStr.substring(0, 5); // HH:MM
-    else key = d.dateObj.getHours(); // HH
+    if (mode === '1min') key = d.timeStr.substring(0, 5); 
+    else key = d.dateObj.getHours();
 
     if (!groups[key]) {
       groups[key] = { count:0, pv:0, pi:0, pp:0, bv:0, bi:0, bp:0, lv:0, li:0, lp:0, lat:0, lng:0, alt:0, startTime: key };
@@ -484,7 +474,7 @@ function aggregateData(data, mode) {
   return Object.keys(groups).sort().reverse().map(k => {
     const g = groups[k];
     const avg = (val) => parseFloat((val / g.count).toFixed(2));
-    const avgCoord = (val) => parseFloat((val / g.count).toFixed(6)); // 座標は精度高めに
+    const avgCoord = (val) => parseFloat((val / g.count).toFixed(6)); 
     
     let timeLabel = k;
     if (mode === '1hour') timeLabel = `${k}:00 - ${k}:59`;
