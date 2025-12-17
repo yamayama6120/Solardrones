@@ -75,7 +75,7 @@
 
 <div id="sec-graphs" class="section active">
   <div class="graph-controls">
-    <div id="mode-text" class="mode-badge">リアル (00:00-23:59)</div>
+    <div id="mode-text" class="mode-badge">リアルタイム(00:00-23:59)</div>
     <input type="time" id="t-start" value="00:00"> 〜 <input type="time" id="t-end" value="23:59">
     <button id="btn-apply" class="action-btn">指定範囲を表示</button>
     <button id="btn-reset" class="reset-btn">リアルタイムに戻す</button>
@@ -105,21 +105,21 @@
 
   <div id="view-panel" class="graph-view">
     <div class="card">
-      <h3>Panel Voltage (V) & Current (I)</h3>
+      <h3>Panel Voltage (V) Current (I)</h3>
       <div class="chart-box"><canvas id="c-p-vi"></canvas></div>
     </div>
   </div>
 
   <div id="view-batt" class="graph-view">
     <div class="card">
-      <h3>Battery Voltage (V) & Current (I)</h3>
+      <h3>Battery Voltage (V) Current (I)</h3>
       <div class="chart-box"><canvas id="c-b-vi"></canvas></div>
     </div>
   </div>
 
   <div id="view-load" class="graph-view">
     <div class="card">
-      <h3>Load Voltage (V) & Current (I)</h3>
+      <h3>Load Voltage (V) Current (I)</h3>
       <div class="chart-box"><canvas id="c-l-vi"></canvas></div>
     </div>
   </div>
@@ -133,7 +133,7 @@
   <div class="table-controls">
     <input type="date" id="date-picker">
     <select id="agg-select">
-      <option value="raw">生データ</option>
+      <option value="raw">データ</option>
       <option value="1min">1分平均</option>
       <option value="1hour">1時間平均</option>
     </select>
