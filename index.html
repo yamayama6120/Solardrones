@@ -2,109 +2,64 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Drone Dashboard - Professional Edition</title>
+<title>Drone Dashboard Pro - Altitude Integrated</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  /* ===== 基本スタイル ===== */
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; background: #f0f2f5; color: #333; }
-  
-  /* 固定ヘッダー */
-  header { display: flex; justify-content: center; gap: 15px; background: #1a1a2e; padding: 15px 0; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-  header button { background: #303050; color: white; border: none; padding: 12px 25px; border-radius: 25px; cursor: pointer; font-size: 15px; font-weight: bold; transition: 0.3s; }
-  header button:hover { background: #4a4a70; }
-  header button.active { background: #ff4757; box-shadow: 0 0 15px rgba(255, 71, 87, 0.5); }
+  body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+  header { display: flex; justify-content: center; gap: 15px; background: #1a1a2e; padding: 15px 0; position: sticky; top: 0; z-index: 1000; }
+  header button { background: #303050; color: white; border: none; padding: 12px 25px; border-radius: 25px; cursor: pointer; font-weight: bold; }
+  header button.active { background: #ff4757; }
 
-  /* セクション制御 */
-  .section { display: none; padding: 25px; max-width: 1300px; margin: 0 auto; animation: fadeIn 0.4s; }
+  .section { display: none; padding: 20px; max-width: 1200px; margin: 0 auto; }
   .section.active { display: block; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-  /* カード・コンテナ */
-  .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 6px 15px rgba(0,0,0,0.1); margin-bottom: 25px; }
-  .card h3 { margin-top: 0; color: #1a1a2e; border-left: 5px solid #ff4757; padding-left: 10px; }
-
-  /* グラフの高さ設定（縦に大きく配置） */
-  .chart-container-large { position: relative; height: 350px; width: 100%; }
+  .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
   
-  /* サブメニュー */
-  .sub-nav { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
-  .sub-nav button { background: #fff; border: 2px solid #1a1a2e; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-  .sub-nav button.active { background: #1a1a2e; color: white; }
-
-  /* マップ */
-  #map-wrapper { height: 650px; border-radius: 15px; overflow: hidden; box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
-  #map { width: 100%; height: 100%; }
-
-  /* 操作パネル */
-  .control-panel { background: #fff; padding: 20px; border-radius: 15px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-  .control-panel input, .control-panel select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
-
-  /* テーブル */
-  .table-wrapper { overflow-x: auto; border-radius: 10px; }
-  table { width: 100%; border-collapse: collapse; background: white; min-width: 900px; }
-  th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
-  th { background: #1a1a2e; color: white; position: sticky; top: 0; }
-  tr:nth-child(even) { background: #fafafa; }
+  /* グラフを縦に大きく配置 */
+  .chart-box { position: relative; height: 380px; width: 100%; }
+  
+  #map { width: 100%; height: 600px; border-radius: 15px; }
+  .control-panel { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
+  table { width: 100%; border-collapse: collapse; background: white; }
+  th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+  th { background: #1a1a2e; color: white; }
 </style>
 </head>
 <body>
 
 <header>
-  <button id="nav-graphs" class="active" onclick="switchMainTab('graphs')">グラフ表示</button>
-  <button id="nav-map" onclick="switchMainTab('map')">GPSマップ表示</button>
-  <button id="nav-table" onclick="switchMainTab('table')">過去データ・集計</button>
+  <button id="nav-graphs" class="active" onclick="showTab('graphs')">グラフ表示</button>
+  <button id="nav-map" onclick="showTab('map')">GPSマップ表示</button>
+  <button id="nav-table" onclick="showTab('table')">過去データ・集計</button>
 </header>
 
-<div id="section-graphs" class="section active">
-  <div class="sub-nav">
-    <button id="sub-btn-pwr" class="active" onclick="switchGraphMode('pwr')">電力個別 (Power)</button>
-    <button id="sub-btn-vi" onclick="switchGraphMode('vi')">V/I 詳細</button>
-  </div>
-
-  <div id="view-pwr" class="graph-view">
-    <div class="card"><h3>Panel Power (W)</h3><div class="chart-container-large"><canvas id="chart-p-pwr"></canvas></div></div>
-    <div class="card"><h3>Battery Power (W)</h3><div class="chart-container-large"><canvas id="chart-b-pwr"></canvas></div></div>
-    <div class="card"><h3>Load Power (W)</h3><div class="chart-container-large"><canvas id="chart-l-pwr"></canvas></div></div>
-  </div>
-
-  <div id="view-vi" class="graph-view" style="display:none;">
-    <div class="card"><h3>Panel Voltage & Current</h3><div class="chart-container-large"><canvas id="chart-p-vi"></canvas></div></div>
-    <div class="card"><h3>Battery Voltage & Current</h3><div class="chart-container-large"><canvas id="chart-b-vi"></canvas></div></div>
-    <div class="card"><h3>Load Voltage & Current</h3><div class="chart-container-large"><canvas id="chart-l-vi"></canvas></div></div>
-  </div>
+<div id="sec-graphs" class="section active">
+  <div class="card"><h3>Panel Power (W)</h3><div class="chart-box"><canvas id="rt-p"></canvas></div></div>
+  <div class="card"><h3>Battery Power (W)</h3><div class="chart-box"><canvas id="rt-b"></canvas></div></div>
+  <div class="card"><h3>Load Power (W)</h3><div class="chart-box"><canvas id="rt-l"></canvas></div></div>
 </div>
 
-<div id="section-map" class="section">
+<div id="sec-map" class="section">
   <div class="card">
-    <h3>Drone Real-time Tracking</h3>
-    <div id="map-wrapper"><div id="map"></div></div>
+    <div id="map"></div>
   </div>
 </div>
 
-<div id="section-table" class="section">
+<div id="sec-table" class="section">
   <div class="control-panel">
-    <div><b>日付:</b> <input type="date" id="hist-date"></div>
-    <div><b>期間:</b> <input type="time" id="hist-start" value="00:00"> 〜 <input type="time" id="hist-end" value="23:59"></div>
-    <button onclick="plotHistoryChart()" style="background:#2980b9; color:white; border:none; padding:12px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">グラフプロット</button>
-    <button onclick="updateDataTable()" style="background:#7f8c8d; color:white; border:none; padding:12px 20px; border-radius:6px; cursor:pointer;">表示更新</button>
+    <input type="date" id="h-date">
+    <input type="time" id="h-start" value="00:00"> 〜 <input type="time" id="h-end" value="23:59">
+    <button onclick="plotHistory()" style="background:#2980b9; color:white; padding:10px 20px; border:none; border-radius:5px; cursor:pointer;">グラフプロット</button>
+    <button onclick="updateTable()" style="background:#7f8c8d; color:white; padding:10px 20px; border:none; border-radius:5px; cursor:pointer;">表示更新</button>
   </div>
-
-  <div class="card" id="history-container" style="display:none;">
-    <h3>指定期間の電力推移 (Panel, Battery, Load)</h3>
-    <div class="chart-container-large"><canvas id="chart-history"></canvas></div>
+  <div class="card" id="hist-card" style="display:none;">
+    <h3>履歴プロット</h3><div class="chart-box"><canvas id="hist-chart"></canvas></div>
   </div>
-
   <div class="card">
-    <h3>ログデータ一覧</h3>
-    <div class="table-wrapper">
-      <table id="log-table">
-        <thead>
-          <tr><th>Time</th><th>P-Volt</th><th>P-Curr</th><th>B-Volt</th><th>B-Curr</th><th>L-Volt</th><th>L-Curr</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <table>
+      <thead><tr><th>Time</th><th>Lat</th><th>Lng</th><th>Alt</th><th>P(W)</th><th>B(W)</th><th>L(W)</th></tr></thead>
+      <tbody id="log-body"></tbody>
+    </table>
   </div>
 </div>
 
@@ -122,148 +77,79 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// --- データ管理 ---
-let allDataLog = [];
+let log = [];
 let charts = {};
-const MAX_POINTS = 50;
 
-// --- グラフ初期化 ---
-function createLineChart(id, label, color) {
-  return new Chart(document.getElementById(id), {
-    type: 'line',
-    data: { labels: [], datasets: [{ label: label, borderColor: color, backgroundColor: color+'22', data: [], fill: true, tension: 0.3 }] },
-    options: { responsive: true, maintainAspectRatio: false, animation: false, elements: { point: { radius: 2 } } }
-  });
-}
-
-function createDualChart(id, labels) {
-  return new Chart(document.getElementById(id), {
-    type: 'line',
-    data: { labels: [], datasets: [
-      { label: labels[0], borderColor: '#3498db', data: [], yAxisID: 'y' },
-      { label: labels[1], borderColor: '#2ecc71', data: [], yAxisID: 'y1' }
-    ]},
-    options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y1: { position: 'right', grid: { drawOnChartArea: false } } } }
-  });
-}
-
-charts.pPwr = createLineChart('chart-p-pwr', 'Panel(W)', '#f1c40f');
-charts.bPwr = createLineChart('chart-b-pwr', 'Battery(W)', '#e67e22');
-charts.lPwr = createLineChart('chart-l-pwr', 'Load(W)', '#e74c3c');
-charts.pVI = createDualChart('chart-p-vi', ['Voltage(V)', 'Current(A)']);
-charts.bVI = createDualChart('chart-b-vi', ['Voltage(V)', 'Current(A)']);
-charts.lVI = createDualChart('chart-l-vi', ['Voltage(V)', 'Current(A)']);
-
-charts.hist = new Chart(document.getElementById('chart-history'), {
+// グラフ初期化
+const createChart = (id, label, color) => new Chart(document.getElementById(id), {
   type: 'line',
-  data: { labels: [], datasets: [
-    { label: 'Panel', borderColor: '#f1c40f', data: [] },
-    { label: 'Battery', borderColor: '#e67e22', data: [] },
-    { label: 'Load', borderColor: '#e74c3c', data: [] }
-  ]},
-  options: { responsive: true, maintainAspectRatio: false }
+  data: { labels: [], datasets: [{ label: label, borderColor: color, data: [], fill: true, backgroundColor: color+'22' }] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false }
 });
 
-// --- マップ初期化 (元ロジック準拠) ---
-const map = L.map("map").setView([35.0, 135.0], 13);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OSM" }).addTo(map);
+charts.p = createChart('rt-p', 'Panel(W)', '#f1c40f');
+charts.b = createChart('rt-b', 'Battery(W)', '#e67e22');
+charts.l = createChart('rt-l', 'Load(W)', '#e74c3c');
+charts.h = new Chart(document.getElementById('hist-chart'), { type:'line', data:{labels:[], datasets:[{label:'P',borderColor:'#f1c40f',data:[]},{label:'B',borderColor:'#e67e22',data:[]},{label:'L',borderColor:'#e74c3c',data:[]}]}, options:{responsive:true,maintainAspectRatio:false}});
+
+// マップ
+const map = L.map('map').setView([35, 135], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let marker = null;
 
-// --- Firebase受信 ---
 onValue(ref(db, "latest"), (snap) => {
-  const raw = snap.val(); if (!raw) return;
+  const d = snap.val(); if(!d) return;
+  const t = new Date().toLocaleTimeString();
+  const pp = (d.panel.v * d.panel.c / 1000).toFixed(2);
+  const bp = (d.battery.v * d.battery.c / 1000).toFixed(2);
+  const lp = (d.load.v * d.load.c / 1000).toFixed(2);
 
-  // Swap logic (Panel/Battery 入れ替え)
-  const d = {
-    t: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
-    date: new Date().toISOString().split('T')[0],
-    pv: Number(raw.battery?.voltage || 0), pi: Number(raw.battery?.current || 0),
-    bv: Number(raw.panel?.voltage || 0), bi: Number(raw.panel?.current || 0),
-    lv: Number(raw.load?.voltage || 0), li: Number(raw.load?.current || 0),
-    gps: raw.GPS || { lat: 0, lng: 0 }
+  const update = (c, v) => {
+    c.data.labels.push(t); c.data.datasets[0].data.push(v);
+    if(c.data.labels.length > 40){ c.data.labels.shift(); c.data.datasets[0].data.shift(); }
+    c.update();
   };
-  const pp = (d.pv * d.pi).toFixed(2);
-  const bp = (d.bv * d.bi).toFixed(2);
-  const lp = (d.lv * d.li).toFixed(2);
+  update(charts.p, pp); update(charts.b, bp); update(charts.l, lp);
 
-  // 1. リアルタイムグラフ更新
-  const push = (chart, label, vals) => {
-    chart.data.labels.push(label);
-    vals.forEach((v, i) => chart.data.datasets[i].data.push(v));
-    if (chart.data.labels.length > MAX_POINTS) { chart.data.labels.shift(); chart.data.datasets.forEach(ds => ds.data.shift()); }
-    chart.update();
-  };
-  push(charts.pPwr, d.t, [pp]);
-  push(charts.bPwr, d.t, [bp]);
-  push(charts.lPwr, d.t, [lp]);
-  push(charts.pVI, d.t, [d.pv, d.pi]);
-  push(charts.bVI, d.t, [d.bv, d.bi]);
-  push(charts.lVI, d.t, [d.lv, d.li]);
-
-  // 2. マップ更新 (元ロジック)
-  if (d.gps.lat && d.gps.lng) {
-    const pos = [d.gps.lat, d.gps.lng];
-    if (!marker) {
-      marker = L.marker(pos).addTo(map);
-      marker.bindPopup(`<b>Current Power</b><br>Panel: ${pp}W`).openPopup();
-    } else {
-      marker.setLatLng(pos).setPopupContent(`<b>Current Power</b><br>Panel: ${pp}W`);
-    }
+  if(d.GPS.lat){
+    const pos = [d.GPS.lat, d.GPS.lng];
+    const popupContent = `<b>Power:</b> ${pp}W<br><b>Alt:</b> ${d.GPS.alt}m`;
+    if(!marker) marker = L.marker(pos).addTo(map).bindPopup(popupContent).openPopup();
+    else marker.setLatLng(pos).setPopupContent(popupContent);
     map.panTo(pos);
   }
-
-  // 3. ログ記録
-  allDataLog.unshift({ ...d, pp, bp, lp });
+  log.unshift({t, date:new Date().toISOString().split('T')[0], gps:d.GPS, pp, bp, lp});
 });
 
-// --- 各種操作関数 ---
-window.switchMainTab = (target) => {
-  // すべてのセクションとボタンの状態をリセット
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('header button').forEach(b => b.classList.remove('active'));
-  
-  // 指定したセクションをアクティブ化
-  document.getElementById(`section-${target}`).classList.add('active');
-  document.getElementById(`nav-${target}`).classList.add('active');
-  
-  // マップの表示崩れ防止
-  if (target === 'map') setTimeout(() => map.invalidateSize(), 200);
+window.showTab = (n) => {
+  document.querySelectorAll('.section, header button').forEach(el => el.classList.remove('active'));
+  document.getElementById(`sec-${n}`).classList.add('active');
+  document.getElementById(`nav-${n}`).classList.add('active');
+  if(n === 'map') setTimeout(()=>map.invalidateSize(), 200);
 };
 
-window.switchGraphMode = (mode) => {
-  document.querySelectorAll('.graph-view').forEach(v => v.style.display = 'none');
-  document.querySelectorAll('.sub-nav button').forEach(b => b.classList.remove('active'));
-  
-  document.getElementById(`view-${mode}`).style.display = 'block';
-  document.getElementById(`sub-btn-${mode}`).classList.add('active');
+window.plotHistory = () => {
+  const dt = document.getElementById('h-date').value;
+  const filtered = log.filter(d => d.date === dt).reverse();
+  document.getElementById('hist-card').style.display = 'block';
+  charts.h.data.labels = filtered.map(d => d.t);
+  charts.h.data.datasets[0].data = filtered.map(d => d.pp);
+  charts.h.data.datasets[1].data = filtered.map(d => d.bp);
+  charts.h.data.datasets[2].data = filtered.map(d => d.lp);
+  charts.h.update();
 };
 
-window.plotHistoryChart = () => {
-  const date = document.getElementById('hist-date').value;
-  const start = document.getElementById('hist-start').value;
-  const end = document.getElementById('hist-end').value;
-
-  const filtered = allDataLog.filter(d => d.date === date && d.t >= start && d.t <= end).reverse();
-  
-  if (filtered.length === 0) return alert("指定期間のデータが記録されていません。");
-
-  document.getElementById('history-container').style.display = 'block';
-  charts.hist.data.labels = filtered.map(d => d.t);
-  charts.hist.data.datasets[0].data = filtered.map(d => d.pp);
-  charts.hist.data.datasets[1].data = filtered.map(d => d.bp);
-  charts.hist.data.datasets[2].data = filtered.map(d => d.lp);
-  charts.hist.update();
+window.updateTable = () => {
+  const dt = document.getElementById('h-date').value;
+  const body = document.getElementById('log-body');
+  body.innerHTML = log.filter(d => d.date === dt).map(d => `
+    <tr>
+      <td>${d.t}</td><td>${d.gps.lat?.toFixed(4)}</td><td>${d.gps.lng?.toFixed(4)}</td>
+      <td>${d.gps.alt}m</td><td>${d.pp}</td><td>${d.bp}</td><td>${d.lp}</td>
+    </tr>
+  `).join('');
 };
-
-window.updateDataTable = () => {
-  const date = document.getElementById('hist-date').value;
-  const tbody = document.querySelector('#log-table tbody');
-  const data = allDataLog.filter(d => d.date === date);
-  tbody.innerHTML = data.map(d => `<tr><td>${d.t}</td><td>${d.pv}</td><td>${d.pi}</td><td>${d.bv}</td><td>${d.bi}</td><td>${d.lv}</td><td>${d.li}</td></tr>`).join('');
-};
-
-// 初期設定
-document.getElementById('hist-date').valueAsDate = new Date();
+document.getElementById('h-date').valueAsDate = new Date();
 </script>
 </body>
 </html>
