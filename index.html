@@ -2,57 +2,12 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Drone Monitor (Simple)</title>
+<title>Drone Monitor Minimal</title>
 
 <!-- ライブラリ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-body {
-  font-family: Arial, sans-serif;
-  margin: 10px;
-}
-
-button {
-  padding: 6px 12px;
-  margin-right: 5px;
-}
-
-.section {
-  display: none;
-  margin-top: 15px;
-}
-
-.section.active {
-  display: block;
-}
-
-#map {
-  height: 400px;
-}
-
-canvas {
-  max-height: 300px;
-}
-
-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 12px;
-}
-
-th, td {
-  border: 1px solid #ccc;
-  padding: 4px;
-  text-align: center;
-}
-
-th {
-  background: #eee;
-}
-</style>
 </head>
 
 <body>
@@ -60,44 +15,41 @@ th {
 <h2>Drone Monitor</h2>
 
 <!-- ナビ -->
-<button onclick="showSection('graphs')">グラフ</button>
-<button onclick="showSection('map')">GPS</button>
-<button onclick="showSection('table')">データ</button>
+<button onclick="show('graph')">グラフ</button>
+<button onclick="show('map')">GPS</button>
+<button onclick="show('table')">データ</button>
+
+<hr>
 
 <!-- ===== グラフ ===== -->
-<div id="sec-graphs" class="section active">
-  <h3>電力グラフ</h3>
-  <canvas id="c-ov-p"></canvas>
-  <canvas id="c-ov-b"></canvas>
-  <canvas id="c-ov-l"></canvas>
+<div id="graph">
+  <h3>Power</h3>
+  <canvas id="p"></canvas>
+  <canvas id="b"></canvas>
+  <canvas id="l"></canvas>
 </div>
 
 <!-- ===== マップ ===== -->
-<div id="sec-map" class="section">
-  <h3>GPSマップ</h3>
-  <div id="map"></div>
+<div id="map" style="display:none">
+  <h3>GPS</h3>
+  <div id="mapid" style="height:400px"></div>
 </div>
 
 <!-- ===== テーブル ===== -->
-<div id="sec-table" class="section">
-  <h3>ログデータ</h3>
-  <input type="date" id="target-date">
-  <button onclick="refreshTable('raw')">表示</button>
-  <button onclick="exportCSV()">CSV</button>
+<div id="table" style="display:none">
+  <h3>Log</h3>
+  <input type="date" id="date">
+  <button onclick="showTable()">表示</button>
+  <button onclick="csv()">CSV</button>
 
-  <table>
+  <table border="1">
     <thead>
       <tr>
-        <th>時刻</th>
-        <th>緯度</th>
-        <th>経度</th>
-        <th>高度</th>
-        <th>Panel W</th>
-        <th>Battery W</th>
-        <th>Load W</th>
+        <th>Time</th><th>Lat</th><th>Lng</th><th>Alt</th>
+        <th>PanelW</th><th>BatteryW</th><th>LoadW</th>
       </tr>
     </thead>
-    <tbody id="log-body"></tbody>
+    <tbody id="tbody"></tbody>
   </table>
 </div>
 
@@ -105,119 +57,87 @@ th {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-/* Firebase設定（そのまま） */
-const firebaseConfig = {
+/* Firebase */
+const app = initializeApp({
   apiKey: "AIzaSyBq9omBu6A-Le7lEjQAlsvqtv8Mqa8tl-c",
-  authDomain: "dronesgps-f3616.firebaseapp.com",
   databaseURL: "https://dronesgps-f3616-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "dronesgps-f3616"
-};
-
-const app = initializeApp(firebaseConfig);
+});
 const db = getDatabase(app);
 
-let allData = [];
-let map, marker, pathLine;
-const MAX_POINTS = 50;
+let log = [];
 
-/* ===== グラフ ===== */
-const makeChart = (id, label) => new Chart(
-  document.getElementById(id),
-  {
-    type: 'line',
+/* グラフ */
+const make = (id, label) =>
+  new Chart(document.getElementById(id), {
+    type: "line",
     data: { labels: [], datasets: [{ label, data: [] }] },
     options: { animation: false }
-  }
-);
-
-const cP = makeChart("c-ov-p", "Panel W");
-const cB = makeChart("c-ov-b", "Battery W");
-const cL = makeChart("c-ov-l", "Load W");
-
-/* ===== マップ ===== */
-map = L.map('map').setView([35.68, 139.76], 15);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-marker = L.marker([0, 0]).addTo(map);
-pathLine = L.polyline([]).addTo(map);
-
-/* ===== Firebase受信 ===== */
-onValue(ref(db, "latest"), snap => {
-  const d = snap.val();
-  if (!d) return;
-
-  const now = new Date();
-  const time = now.toLocaleTimeString();
-
-  const pW = d.panel.voltage * d.panel.current_mA / 1000;
-  const bW = d.battery.voltage * d.battery.current_mA / 1000;
-  const lW = d.load.voltage * d.load.current_mA / 1000;
-
-  allData.push({
-    date: now.toISOString().split("T")[0],
-    time,
-    lat: d.GPS.lat,
-    lng: d.GPS.lng,
-    alt: d.GPS.alt,
-    pW, bW, lW
   });
 
-  const update = (c, v) => {
-    c.data.labels.push(time);
-    c.data.datasets[0].data.push(v);
-    if (c.data.labels.length > MAX_POINTS) {
-      c.data.labels.shift();
-      c.data.datasets[0].data.shift();
-    }
-    c.update();
-  };
+const gp = make("p", "Panel W");
+const gb = make("b", "Battery W");
+const gl = make("l", "Load W");
 
-  update(cP, pW);
-  update(cB, bW);
-  update(cL, lW);
+/* マップ */
+const map = L.map("mapid").setView([35.68, 139.76], 15);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+const marker = L.marker([0,0]).addTo(map);
+const line = L.polyline([]).addTo(map);
 
-  marker.setLatLng([d.GPS.lat, d.GPS.lng]);
-  pathLine.addLatLng([d.GPS.lat, d.GPS.lng]);
+/* Firebase受信 */
+onValue(ref(db, "latest"), s => {
+  const d = s.val(); if (!d) return;
+
+  const t = new Date();
+  const time = t.toLocaleTimeString();
+  const date = t.toISOString().split("T")[0];
+
+  const pw = d.panel.voltage * d.panel.current_mA / 1000;
+  const bw = d.battery.voltage * d.battery.current_mA / 1000;
+  const lw = d.load.voltage * d.load.current_mA / 1000;
+
+  log.push({ date, time, lat:d.GPS.lat, lng:d.GPS.lng, alt:d.GPS.alt, pw, bw, lw });
+
+  const up = (c,v) => { c.data.labels.push(time); c.data.datasets[0].data.push(v); c.update(); };
+  up(gp,pw); up(gb,bw); up(gl,lw);
+
+  marker.setLatLng([d.GPS.lat,d.GPS.lng]);
+  line.addLatLng([d.GPS.lat,d.GPS.lng]);
 });
 
-/* ===== テーブル ===== */
-window.refreshTable = () => {
-  const date = document.getElementById("target-date").value;
-  const body = document.getElementById("log-body");
-  body.innerHTML = "";
-
-  allData.filter(d => d.date === date).forEach(d => {
-    body.innerHTML += `
-      <tr>
-        <td>${d.time}</td>
-        <td>${d.lat}</td>
-        <td>${d.lng}</td>
-        <td>${d.alt}</td>
-        <td>${d.pW.toFixed(2)}</td>
-        <td>${d.bW.toFixed(2)}</td>
-        <td>${d.lW.toFixed(2)}</td>
-      </tr>`;
+/* テーブル */
+window.showTable = () => {
+  const d = document.getElementById("date").value;
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+  log.filter(x=>x.date===d).forEach(x=>{
+    tb.innerHTML += `<tr>
+      <td>${x.time}</td><td>${x.lat}</td><td>${x.lng}</td><td>${x.alt}</td>
+      <td>${x.pw.toFixed(2)}</td><td>${x.bw.toFixed(2)}</td><td>${x.lw.toFixed(2)}</td>
+    </tr>`;
   });
 };
 
-window.exportCSV = () => {
-  let csv = "time,lat,lng,alt,panelW,batteryW,loadW\n";
-  allData.forEach(d => {
-    csv += `${d.time},${d.lat},${d.lng},${d.alt},${d.pW},${d.bW},${d.lW}\n`;
-  });
+/* CSV */
+window.csv = () => {
+  let c = "time,lat,lng,alt,panelW,batteryW,loadW\n";
+  log.forEach(x=>c+=`${x.time},${x.lat},${x.lng},${x.alt},${x.pw},${x.bw},${x.lw}\n`);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv]));
-  a.download = "drone_log.csv";
+  a.href = URL.createObjectURL(new Blob([c]));
+  a.download = "log.csv";
   a.click();
 };
 
-/* ===== UI ===== */
-window.showSection = id => {
-  document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-  document.getElementById("sec-" + id).classList.add("active");
-  if (id === "map") setTimeout(() => map.invalidateSize(), 200);
+/* 表示切替 */
+window.show = id => {
+  ["graph","map","table"].forEach(x=>document.getElementById(x).style.display="none");
+  document.getElementById(id).style.display="block";
+  if(id==="map") setTimeout(()=>map.invalidateSize(),200);
 };
 
-document.getElementById("target-date").valueAsDate = new Date();
+document.getElementById("date").valueAsDate = new Date();
 </script>
+
 </body>
 </html>
